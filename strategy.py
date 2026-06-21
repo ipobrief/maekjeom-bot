@@ -39,11 +39,10 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     k, dd = ind.stochastic(d)
     rci_long = ind.rci(d["close"], cfg["rci_long"])
     atr = ind.atr(d, cfg["atr_period"])
-    bias = (
-        align_bias(tf_bias(df1h), d.index) * 1.0 +
-        align_bias(tf_bias(df4h), d.index) * 1.5 +
-        align_bias(tf_bias(df1d), d.index) * 2.0
-    )
+    b1 = align_bias(tf_bias(df1h), d.index)
+    b4 = align_bias(tf_bias(df4h), d.index)
+    bd = align_bias(tf_bias(df1d), d.index)
+    bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
     senkou1 = ich["senkou1"]
     cs = cfg["chikou_shift"]
@@ -100,6 +99,9 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["rci_long"] = rci_long
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
+    out["bias_1h"] = b1
+    out["bias_4h"] = b4
+    out["bias_1d"] = bd
     out["long"] = long_entry
     out["short"] = short_entry
     out["long_exit"] = long_exit
@@ -132,10 +134,20 @@ def explain(sig_row, cfg) -> dict:
         "RCI(long) < 0": bool(r["S4"]),
         "후행스팬 < 26봉전 봉": bool(r["S5"]),
     }
+    def tf_txt(s):
+        if s >= 1: return "상승 ↗"
+        if s > 0: return "약상승 ↗"
+        if s == 0: return "중립 →"
+        if s > -1: return "약하락 ↘"
+        return "하락 ↘"
+
     return {
         "direction": direction,
         "close": r["close"], "atr": r["atr"],
         "bias": bias, "bias_txt": bias_txt,
+        "tf_1h": tf_txt(r.get("bias_1h", 0)),
+        "tf_4h": tf_txt(r.get("bias_4h", 0)),
+        "tf_1d": tf_txt(r.get("bias_1d", 0)),
         "k": r["k"], "rci_long": r["rci_long"],
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
