@@ -200,9 +200,23 @@ def run_once():
         emit(fmt_status(e, when))
 
 
+def run_test_message():
+    """실제 신호와 무관하게 샘플 알림을 강제 발송(텔레그램 경로 점검용)."""
+    closed, when, sig = snapshot()
+    e = enrich(closed, sig)
+    if not e["direction"]:   # 신호 없으면 더 충족된 쪽으로 샘플 구성
+        e["direction"] = ("LONG" if sum(e["checks_long"].values()) >= sum(e["checks_short"].values())
+                          else "SHORT")
+    emit("🧪 <b>[테스트 발송 — 실제 진입신호 아님]</b>\n" + fmt_signal(e, when))
+
+
 def run_cron():
     """클라우드(GitHub Actions)용: 방금 마감된 봉에 신호가 있을 때만 알림.
-    매시간 호출되며, 마지막 마감봉이 '신선'할 때만 전송해 중복을 막는다."""
+    매시간 호출되며, 마지막 마감봉이 '신선'할 때만 전송해 중복을 막는다.
+    저장소에 TESTSEND 파일이 있으면 1회 테스트 발송."""
+    if os.path.exists("TESTSEND"):
+        run_test_message()
+        return
     closed, when, sig = snapshot()
     closed_bar_close = sig.index[-1]                 # 마지막 마감봉의 종료시각(=형성중 봉 시작)
     now = pd.Timestamp.now(tz="UTC")
@@ -220,6 +234,8 @@ def run_cron():
 if __name__ == "__main__":
     if "--once" in sys.argv:
         run_once()
+    elif "--test" in sys.argv:
+        run_test_message()
     elif "--cron" in sys.argv:
         run_cron()
     else:
