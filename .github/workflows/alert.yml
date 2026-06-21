@@ -1,0 +1,22 @@
+name: 맥점 알림봇 (BTC 15분)
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: alert-bot
+  cancel-in-progress: false
+jobs:
+  check-signal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - env:
+          TELEGRAM_TOKEN: ${{ 8990404599:AAHcSg7_QF1DnhqcfmLi8SgCcUWyE7SC5e0 }}
+          TELEGRAM_CHAT_ID: ${{ 1135224970 }}
+          PYTHONIOENCODING: "utf-8"
+        run: python alert_bot.py --cron
