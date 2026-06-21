@@ -136,7 +136,7 @@ def fmt_signal(e, when):
     return (
         f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
         f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
-        f"📊 <b>상위TF 방향: {e['bias_txt']}</b> (bias {e['bias']:+.1f}) "
+        f"📊 <b>상위TF 방향: {e['bias_txt']}</b> "
         f"{'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
@@ -156,7 +156,7 @@ def fmt_status(e, when):
     return (
         f"📋 <b>{SYMBOL} 진단</b> {kst(when):%H:%M} KST 마감\n"
         f"💵 {e['close']:,.1f} / 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
-        f"상위TF {e['bias_txt']}({e['bias']:+.1f})\n"
+        f"상위TF {e['bias_txt']}\n"
         f"<b>롱 조건</b> ({sum(cl.values())}/5)\n{fmt_checks(cl)}\n"
         f"<b>숏 조건</b> ({sum(cs.values())}/5)\n{fmt_checks(cs)}"
     )
