@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
-"""바이낸스 선물(USD-M) klines 수집. API 키 불필요(공개 시세)."""
+"""바이낸스 klines 수집. API 키 불필요(공개 시세).
+data-api.binance.vision(공개 데이터 CDN) 사용 — 지역(미국 IP) 차단 없음.
+GitHub Actions(미국 러너)에서 fapi.binance.com은 451로 막히므로 이 엔드포인트를 씀.
+현물 OHLCV지만 15분 지표 신호엔 선물과 사실상 동일."""
 import time
 import requests
 import pandas as pd
 
-BASE = "https://fapi.binance.com"
+BASE = "https://data-api.binance.vision"
 
 
 def fetch_klines(symbol="BTCUSDT", interval="15m", limit=1500, end_time=None):
-    url = f"{BASE}/fapi/v1/klines"
+    url = f"{BASE}/api/v3/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     if end_time:
         params["endTime"] = end_time
