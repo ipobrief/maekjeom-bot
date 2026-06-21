@@ -16,7 +16,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - env:
-          TELEGRAM_TOKEN: ${{ secrets.8990404599:AAFFmdricV3F5gKRlF8nlzPcq8vMpq8nqNU }}
-          TELEGRAM_CHAT_ID: ${{ secrets.1135224970 }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PYTHONIOENCODING: "utf-8"
         run: python alert_bot.py --cron
