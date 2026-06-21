@@ -86,16 +86,17 @@ def emit(text):
     tg_send(text)
 
 
-def snapshot():
-    """현재 데이터로 신호 계산. 주력=15분봉, 상위TF=1h/4h/1d. 마지막 마감봉(-2) 기준."""
+def snapshot(live=False):
+    """현재 데이터로 신호 계산. 주력=15분봉, 상위TF=1h/4h/1d.
+    live=False → 마지막 마감봉(-2) 기준(확정).
+    live=True  → 형성 중 봉(-1) 기준(현재가를 종가로 보고 마감 전 잠정 판정)."""
     df15 = data.get_history(SYMBOL, TF, bars=600)
     df1h = data.get_history(SYMBOL, "1h", bars=400)
     df4h = data.get_history(SYMBOL, "4h", bars=300)
     df1d = data.get_history(SYMBOL, "1d", bars=300)
     sig = strategy.build_signals(df15, df1h, df4h, df1d, CFG)
-    closed = sig.iloc[-2]            # 마지막 완성봉
-    closed_time = sig.index[-2]
-    return closed, closed_time, sig
+    idx = -1 if live else -2
+    return sig.iloc[idx], sig.index[idx], sig
 
 
 def enrich(closed, sig):
@@ -107,7 +108,7 @@ def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
-def fmt_signal(e, when):
+def fmt_signal(e, when, provisional=False, mins_left=None):
     d = e["direction"]
     long_ = d == "LONG"
     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
@@ -130,9 +131,16 @@ def fmt_signal(e, when):
     exit_line = e["sup_line"] if long_ else e["res_line"]
     exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
                 if exit_line == exit_line else "대각선 추세선 돌파 시 (직접 판단)")
+    if provisional:
+        left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
+        head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"
+                f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
+                f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소될 수 있음\n")
+    else:
+        head = (f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
+                f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n")
     return (
-        f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
-        f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
+        head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · 1시간 {e['tf_1h']} / 4시간 {e['tf_4h']} / 일봉 {e['tf_1d']}\n"
         f"━━━━━━━━━━━━━\n"
@@ -187,6 +195,34 @@ def run_live():
         time.sleep(max(10, (nxt - now).total_seconds()))
 
 
+def run_watch(poll_sec=20):
+    """봉 마감을 기다리지 않고, 형성 중 봉의 현재가로 실시간 판정.
+    현재가가 조건(대각선 이탈 등)을 막 충족하는 '순간' 예비신호(잠정)를 1회 발송.
+    같은 형성봉에서는 중복 발송하지 않으며, 봉이 바뀌면 다시 감시한다.
+    확정 신호는 기존 --cron/--live가 봉 마감 때 별도로 보낸다."""
+    emit(f"⚡ 맥점 실시간 감시 시작 — {SYMBOL} {TF} (현재가 기준, {poll_sec}초 간격)"
+         + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드)"))
+    alerted_bar = None    # 예비신호 보낸 형성봉 시각
+    alerted_dir = None
+    while True:
+        try:
+            row, when, sig = snapshot(live=True)
+            e = enrich(row, sig)
+            # 형성봉 마감까지 남은 분 (open_time + 15분 - 현재)
+            now = pd.Timestamp.now(tz="UTC")
+            mins_left = (when + pd.Timedelta(TF) - now).total_seconds() / 60
+            if e["direction"] and (when != alerted_bar or e["direction"] != alerted_dir):
+                emit(fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
+                alerted_bar, alerted_dir = when, e["direction"]
+            elif e["direction"] is None and when == alerted_bar:
+                # 같은 봉에서 신호가 사라짐(되돌림) → 잠정 취소 안내 후 재감시 허용
+                emit(f"↩️ {kst(when):%H:%M} 형성봉 예비신호 해제(되돌림) — {SYMBOL} {TF}")
+                alerted_bar, alerted_dir = None, None
+        except Exception as ex:
+            print("실시간 점검 오류:", ex)
+        time.sleep(poll_sec)
+
+
 def run_once():
     closed, when, sig = snapshot()
     e = enrich(closed, sig)
@@ -234,5 +270,11 @@ if __name__ == "__main__":
         run_test_message()
     elif "--cron" in sys.argv:
         run_cron()
+    elif "--watch" in sys.argv:
+        sec = 20
+        for a in sys.argv:
+            if a.startswith("--poll="):
+                sec = int(a.split("=", 1)[1])
+        run_watch(sec)
     else:
         run_live()
