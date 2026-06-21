@@ -49,12 +49,12 @@ CFG = {
     "atr_period": 14,
     "rci_long": 26,
     "chikou_shift": 26,
-    "pivot_left": 3, "pivot_right": 3,
-    "atr_stop_mult": 2.0,            # 직전저점/고점 없을 때 대체
-    "require_confirms": 4,           # 선행스팬1 돌파 + 보조 4/4 (진입 근거 5개 전부)
-    "exit_mode": "loose",
+    "pivot_left": 3, "pivot_right": 3,    # 손절용 직전저점/고점
+    "trend_pivot": 5,                # 대각선용 '주요' 스윙 강도
+    "core_req": 4,                   # 코어 4개 전부 (구조 전환)
+    "bonus_req": 2,                  # 보너스 3개 중 2개 (모멘텀)
+    "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
-    "trend_lookback": 80,            # 대각선 추세선 근사용 최근 봉 수
 }
 SYMBOL = "BTCUSDT"
 TF = "15m"         # 주력 타임프레임 (진입 판단은 사용자가)
@@ -100,11 +100,8 @@ def snapshot():
 
 
 def enrich(closed, sig):
-    """explain + 대각선 추세선(익절 참고선) 레벨 부착."""
-    e = strategy.explain(closed, CFG)
-    e["res_line"] = trendline_level(sig.iloc[:-1], "res", CFG)   # 하락 추세선(숏 익절 기준)
-    e["sup_line"] = trendline_level(sig.iloc[:-1], "sup", CFG)   # 상승 추세선(롱 익절 기준)
-    return e
+    """explain (대각선 res_line/sup_line·ma20 포함)."""
+    return strategy.explain(closed, CFG)
 
 
 def fmt_checks(checks):
@@ -127,27 +124,27 @@ def fmt_signal(e, when):
     else:
         sl_txt = f"{swing:,.1f} ({'직전저점' if long_ else '직전고점'})"
     risk_pct = abs(px - swing) / px * 100
-    checks = e["checks_long"] if long_ else e["checks_short"]
+    core = e["core_long"] if long_ else e["core_short"]
+    bonus = e["bonus_long"] if long_ else e["bonus_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
-    # 익절 참고선(대각선 추세선): 롱=상승추세선 하향이탈 / 숏=하락추세선 상향돌파
+    # 익절 참고선(대각선): 롱=상승추세선(sup) 하향이탈 / 숏=하락추세선(res) 상향돌파
     exit_line = e["sup_line"] if long_ else e["res_line"]
     exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
-                if exit_line else "대각선 추세선 돌파 시 (직접 판단)")
+                if exit_line == exit_line else "대각선 추세선 돌파 시 (직접 판단)")
     return (
         f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
         f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
-        f"   · 1시간 {e['tf_1h']}\n"
-        f"   · 4시간 {e['tf_4h']}\n"
-        f"   · 일봉  {e['tf_1d']}\n"
+        f"   · 1시간 {e['tf_1h']} / 4시간 {e['tf_4h']} / 일봉 {e['tf_1d']}\n"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
         f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
         f"🎯 익절(시장가): 대각선 추세선 {exit_txt}\n"
         f"━━━━━━━━━━━━━\n"
-        f"<b>진입 근거 체크리스트 ({sum(checks.values())}/5)</b>\n{fmt_checks(checks)}\n"
-        f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
+        f"<b>코어 (구조 전환) {sum(core.values())}/4</b>\n{fmt_checks(core)}\n"
+        f"<b>보너스 (모멘텀) {sum(bonus.values())}/3</b>\n{fmt_checks(bonus)}\n"
+        f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 20일선 {e['ma20']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
         f"<i>판독이지 매매권유 아님. 진입=지정가/익절=시장가. 최종 판단은 본인.</i>"
     )
 
@@ -157,10 +154,10 @@ def fmt_status(e, when):
     cl, cs = e["checks_long"], e["checks_short"]
     return (
         f"📋 <b>{SYMBOL} 진단</b> {kst(when):%H:%M} KST 마감\n"
-        f"💵 {e['close']:,.1f} / 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
+        f"💵 {e['close']:,.1f} / 선행스팬1 {e['senkou1']:,.0f} / 20일선 {e['ma20']:,.0f}\n"
         f"상위TF — 1h {e['tf_1h']} / 4h {e['tf_4h']} / 일봉 {e['tf_1d']}\n"
-        f"<b>롱 조건</b> ({sum(cl.values())}/5)\n{fmt_checks(cl)}\n"
-        f"<b>숏 조건</b> ({sum(cs.values())}/5)\n{fmt_checks(cs)}"
+        f"<b>롱</b> 코어 {sum(e['core_long'].values())}/4 · 보너스 {sum(e['bonus_long'].values())}/3\n{fmt_checks(cl)}\n"
+        f"<b>숏</b> 코어 {sum(e['core_short'].values())}/4 · 보너스 {sum(e['bonus_short'].values())}/3\n{fmt_checks(cs)}"
     )
 
 

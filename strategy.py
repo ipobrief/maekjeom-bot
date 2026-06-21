@@ -45,46 +45,48 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
     senkou1 = ich["senkou1"]
-    cs = cfg["chikou_shift"]
-    # 후행스팬(현재종가를 cs봉 뒤에 그림)이 그 위치 봉(종가) 위/아래
-    chikou_above = d["close"] > d["close"].shift(cs)
-    chikou_below = d["close"] < d["close"].shift(cs)
-    # MACD 크로스
+    tenkan, kijun = ich["tenkan"], ich["kijun"]
+    ma20 = ind.sma(d["close"], 20)
+    tp = cfg.get("trend_pivot", 5)
+    res_line = ind.trendline_series(d, "res", tp, tp)   # 하락 대각선(고점2점)
+    sup_line = ind.trendline_series(d, "sup", tp, tp)   # 상승 대각선(저점2점)
     macd_gc = (macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1))
     macd_dc = (macd_line < macd_sig) & (macd_line.shift(1) >= macd_sig.shift(1))
 
-    # ── 롱 진입: 선행스팬1 돌파(필수) + 보조확증 N개 이상
-    L1 = d["close"] > senkou1                  # 필수
-    L2 = macd_gc | (macd_line > 0)
-    L3 = k > 50
-    L4 = rci_long > 0
-    L5 = chikou_above
-    req = cfg.get("require_confirms", 4)        # 보조 4개 중 몇 개(기본 4=전부)
-    long_confirms = (L2.astype(int) + L3.astype(int) + L4.astype(int) + L5.astype(int))
-    long_all = (L1 & (long_confirms >= req)).fillna(False)
-    long_entry = long_all & ~long_all.shift(1, fill_value=False)   # 충족 시작봉만
+    core_req = cfg.get("core_req", 4)       # 코어 4개 중 몇 개
+    bonus_req = cfg.get("bonus_req", 2)     # 보너스 3개 중 몇 개
 
-    # ── 숏 진입 (거울)
-    S1 = d["close"] < senkou1
-    S2 = macd_dc | (macd_line < 0)
-    S3 = k < 50
-    S4 = rci_long < 0
-    S5 = chikou_below
-    short_confirms = (S2.astype(int) + S3.astype(int) + S4.astype(int) + S5.astype(int))
-    short_all = (S1 & (short_confirms >= req)).fillna(False)
+    # ── 롱: 코어(구조 전환) 4 + 보너스(모멘텀) 3
+    LC1 = d["close"] > senkou1                       # 선행스팬1 위
+    LC2 = tenkan > kijun                             # 전환선 > 기준선
+    LC3 = d["close"] > ma20                           # 20일선 위
+    LC4 = d["close"] > res_line                       # 하락 대각선 상향돌파
+    LB1 = macd_gc | (macd_line > 0)                   # MACD GC/0선위
+    LB2 = k > 50                                      # 스토 50 위
+    LB3 = rci_long > 0                                # RCI 0선 위
+    long_core = (LC1.astype(int) + LC2.astype(int) + LC3.astype(int) + LC4.astype(int))
+    long_bonus = (LB1.astype(int) + LB2.astype(int) + LB3.astype(int))
+    long_all = ((long_core >= core_req) & (long_bonus >= bonus_req)).fillna(False)
+    long_entry = long_all & ~long_all.shift(1, fill_value=False)
+
+    # ── 숏: 거울
+    SC1 = d["close"] < senkou1
+    SC2 = tenkan < kijun
+    SC3 = d["close"] < ma20
+    SC4 = d["close"] < sup_line                       # 상승 대각선 하향이탈
+    SB1 = macd_dc | (macd_line < 0)
+    SB2 = k < 50
+    SB3 = rci_long < 0
+    short_core = (SC1.astype(int) + SC2.astype(int) + SC3.astype(int) + SC4.astype(int))
+    short_bonus = (SB1.astype(int) + SB2.astype(int) + SB3.astype(int))
+    short_all = ((short_core >= core_req) & (short_bonus >= bonus_req)).fillna(False)
     short_entry = short_all & ~short_all.shift(1, fill_value=False)
 
-    # ── 청산(익절)
-    if cfg.get("exit_mode", "strict") == "loose":
-        # 느슨: 선행스팬1 이탈 한 조건만 → 추세 끝까지 보유(트레일링 효과)
-        long_exit = (d["close"] < senkou1).fillna(False)
-        short_exit = (d["close"] > senkou1).fillna(False)
-    else:
-        # 엄격: 핵심 3조건 반대전환
-        long_exit = ((d["close"] < senkou1) & (macd_dc | (macd_line < 0)) & (k < 50)).fillna(False)
-        short_exit = ((d["close"] > senkou1) & (macd_gc | (macd_line > 0)) & (k > 50)).fillna(False)
+    # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
+    long_exit = short_all
+    short_exit = long_all
 
-    # 직전저점/고점 (손절용, 미래참조 방지: right봉 뒤로 밀어 확정)
+    # 직전저점/고점 (손절용)
     pl, pr = cfg.get("pivot_left", 3), cfg.get("pivot_right", 3)
     swing_low = ind.recent_level(ind.swing_low(d, pl, pr), pr)
     swing_high = ind.recent_level(ind.swing_high(d, pl, pr), pr)
@@ -94,21 +96,21 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["atr"] = atr
     out["bias"] = bias
     out["senkou1"] = senkou1
+    out["res_line"] = res_line
+    out["sup_line"] = sup_line
+    out["ma20"] = ma20
     out["k"] = k
     out["macd_line"] = macd_line
     out["rci_long"] = rci_long
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
-    out["bias_1h"] = b1
-    out["bias_4h"] = b4
-    out["bias_1d"] = bd
-    out["long"] = long_entry
-    out["short"] = short_entry
-    out["long_exit"] = long_exit
-    out["short_exit"] = short_exit
-    # 근거 분해용 컴포넌트
-    for name, ser in [("L1", L1), ("L2", L2), ("L3", L3), ("L4", L4), ("L5", L5),
-                      ("S1", S1), ("S2", S2), ("S3", S3), ("S4", S4), ("S5", S5)]:
+    out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
+    out["long"], out["short"] = long_entry, short_entry
+    out["long_exit"], out["short_exit"] = long_exit, short_exit
+    for name, ser in [("LC1", LC1), ("LC2", LC2), ("LC3", LC3), ("LC4", LC4),
+                      ("LB1", LB1), ("LB2", LB2), ("LB3", LB3),
+                      ("SC1", SC1), ("SC2", SC2), ("SC3", SC3), ("SC4", SC4),
+                      ("SB1", SB1), ("SB2", SB2), ("SB3", SB3)]:
         out[name] = ser.fillna(False)
     return out
 
@@ -120,20 +122,30 @@ def explain(sig_row, cfg) -> dict:
     bias = r["bias"]
     bias_txt = ("강한 상승" if bias >= 2 else "약한 상승" if bias > 0 else
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
-    checks_long = {
-        "종가 > 선행스팬1(초록선)": bool(r["L1"]),
-        "MACD 골든크로스/0선 위": bool(r["L2"]),
-        "스토캐스틱 %K > 50": bool(r["L3"]),
-        "RCI(long) > 0": bool(r["L4"]),
-        "후행스팬 > 26봉전 봉": bool(r["L5"]),
+    core_long = {
+        "종가 > 선행스팬1(초록선)": bool(r["LC1"]),
+        "전환선 > 기준선": bool(r["LC2"]),
+        "20일선 위": bool(r["LC3"]),
+        "하락 대각선 상향돌파": bool(r["LC4"]),
     }
-    checks_short = {
-        "종가 < 선행스팬1(초록선)": bool(r["S1"]),
-        "MACD 데드크로스/0선 아래": bool(r["S2"]),
-        "스토캐스틱 %K < 50": bool(r["S3"]),
-        "RCI(long) < 0": bool(r["S4"]),
-        "후행스팬 < 26봉전 봉": bool(r["S5"]),
+    bonus_long = {
+        "MACD 골든크로스/0선 위": bool(r["LB1"]),
+        "스토캐스틱 %K > 50": bool(r["LB2"]),
+        "RCI 0선 위": bool(r["LB3"]),
     }
+    core_short = {
+        "종가 < 선행스팬1(초록선)": bool(r["SC1"]),
+        "전환선 < 기준선": bool(r["SC2"]),
+        "20일선 아래": bool(r["SC3"]),
+        "상승 대각선 하향이탈": bool(r["SC4"]),
+    }
+    bonus_short = {
+        "MACD 데드크로스/0선 아래": bool(r["SB1"]),
+        "스토캐스틱 %K < 50": bool(r["SB2"]),
+        "RCI 0선 아래": bool(r["SB3"]),
+    }
+    checks_long = {**core_long, **bonus_long}
+    checks_short = {**core_short, **bonus_short}
     def tf_txt(s):
         if s >= 1: return "상승 ↗"
         if s > 0: return "약상승 ↗"
@@ -152,5 +164,10 @@ def explain(sig_row, cfg) -> dict:
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
         "swing_high": r.get("swing_high", float("nan")),
+        "res_line": r.get("res_line", float("nan")),
+        "sup_line": r.get("sup_line", float("nan")),
+        "ma20": r.get("ma20", float("nan")),
         "checks_long": checks_long, "checks_short": checks_short,
+        "core_long": core_long, "bonus_long": bonus_long,
+        "core_short": core_short, "bonus_short": bonus_short,
     }

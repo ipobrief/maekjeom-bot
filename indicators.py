@@ -111,3 +111,26 @@ def swing_low(df: pd.DataFrame, left=3, right=3) -> pd.Series:
 def recent_level(pivot: pd.Series, right: int) -> pd.Series:
     """피벗 가격을 right봉 뒤로 밀어(미래참조 방지) 직전 확정 레벨로 forward-fill."""
     return pivot.shift(right).ffill()
+
+
+def trendline_series(df: pd.DataFrame, kind: str = "res", left: int = 5, right: int = 5) -> pd.Series:
+    """봉마다 '직전 주요 스윙 2점'을 이은 대각선 추세선 값을 반환(미래참조 없음).
+    kind='res' 고점 2개(하락추세선) / 'sup' 저점 2개(상승추세선).
+    피벗은 right봉 뒤에 확정되므로 그 시점 이후부터만 사용."""
+    piv = swing_high(df, left, right) if kind == "res" else swing_low(df, left, right)
+    vals = piv.values
+    positions = np.where(~np.isnan(vals))[0]      # 피벗이 위치한 봉
+    confirmed = positions + right                  # 그 피벗이 '확정'되는 봉
+    line = np.full(len(df), np.nan)
+    known = []
+    ci = 0
+    for t in range(len(df)):
+        while ci < len(positions) and confirmed[ci] <= t:
+            known.append((positions[ci], vals[positions[ci]]))
+            ci += 1
+        if len(known) >= 2:
+            (i1, y1), (i2, y2) = known[-2], known[-1]
+            if i2 != i1:
+                slope = (y2 - y1) / (i2 - i1)
+                line[t] = y2 + slope * (t - i2)
+    return pd.Series(line, index=df.index)
