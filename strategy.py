@@ -50,36 +50,40 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     tp = cfg.get("trend_pivot", 5)
     res_line = ind.trendline_series(d, "res", tp, tp)   # 하락 대각선(고점2점)
     sup_line = ind.trendline_series(d, "sup", tp, tp)   # 상승 대각선(저점2점)
+    cs = cfg["chikou_shift"]
+    chikou_above = d["close"] > d["close"].shift(cs)    # 후행스팬 > 26봉전 봉
+    chikou_below = d["close"] < d["close"].shift(cs)
     macd_gc = (macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1))
     macd_dc = (macd_line < macd_sig) & (macd_line.shift(1) >= macd_sig.shift(1))
 
-    core_req = cfg.get("core_req", 4)       # 코어 4개 중 몇 개
-    bonus_req = cfg.get("bonus_req", 2)     # 보너스 3개 중 몇 개
+    rem_req = cfg.get("rem_req", 3)         # 필수2 외 나머지 6개 중 몇 개
 
-    # ── 롱: 코어(구조 전환) 4 + 보너스(모멘텀) 3
-    LC1 = d["close"] > senkou1                       # 선행스팬1 위
-    LC2 = tenkan > kijun                             # 전환선 > 기준선
-    LC3 = d["close"] > ma20                           # 20일선 위
-    LC4 = d["close"] > res_line                       # 하락 대각선 상향돌파
-    LB1 = macd_gc | (macd_line > 0)                   # MACD GC/0선위
-    LB2 = k > 50                                      # 스토 50 위
-    LB3 = rci_long > 0                                # RCI 0선 위
-    long_core = (LC1.astype(int) + LC2.astype(int) + LC3.astype(int) + LC4.astype(int))
-    long_bonus = (LB1.astype(int) + LB2.astype(int) + LB3.astype(int))
-    long_all = ((long_core >= core_req) & (long_bonus >= bonus_req)).fillna(False)
+    # ── 롱: 필수(선행스팬1·20일선) + 나머지6 중 rem_req개
+    LM1 = d["close"] > senkou1                        # [필수] 선행스팬1 위
+    LM2 = d["close"] > ma20                            # [필수] 20일선 위
+    LR1 = chikou_above                                # 후행스팬 > 26봉전
+    LR2 = tenkan > kijun                              # 전환선 > 기준선
+    LR3 = d["close"] > res_line                        # 하락 대각선 상향돌파
+    LR4 = macd_gc | (macd_line > 0)                    # MACD GC/0선위
+    LR5 = k > 50                                       # 스토 50 위
+    LR6 = rci_long > 0                                 # RCI 0선 위
+    long_rem = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
+                + LR4.astype(int) + LR5.astype(int) + LR6.astype(int))
+    long_all = (LM1 & LM2 & (long_rem >= rem_req)).fillna(False)
     long_entry = long_all & ~long_all.shift(1, fill_value=False)
 
     # ── 숏: 거울
-    SC1 = d["close"] < senkou1
-    SC2 = tenkan < kijun
-    SC3 = d["close"] < ma20
-    SC4 = d["close"] < sup_line                       # 상승 대각선 하향이탈
-    SB1 = macd_dc | (macd_line < 0)
-    SB2 = k < 50
-    SB3 = rci_long < 0
-    short_core = (SC1.astype(int) + SC2.astype(int) + SC3.astype(int) + SC4.astype(int))
-    short_bonus = (SB1.astype(int) + SB2.astype(int) + SB3.astype(int))
-    short_all = ((short_core >= core_req) & (short_bonus >= bonus_req)).fillna(False)
+    SM1 = d["close"] < senkou1
+    SM2 = d["close"] < ma20
+    SR1 = chikou_below
+    SR2 = tenkan < kijun
+    SR3 = d["close"] < sup_line                        # 상승 대각선 하향이탈
+    SR4 = macd_dc | (macd_line < 0)
+    SR5 = k < 50
+    SR6 = rci_long < 0
+    short_rem = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
+                 + SR4.astype(int) + SR5.astype(int) + SR6.astype(int))
+    short_all = (SM1 & SM2 & (short_rem >= rem_req)).fillna(False)
     short_entry = short_all & ~short_all.shift(1, fill_value=False)
 
     # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
@@ -107,10 +111,10 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
     out["long"], out["short"] = long_entry, short_entry
     out["long_exit"], out["short_exit"] = long_exit, short_exit
-    for name, ser in [("LC1", LC1), ("LC2", LC2), ("LC3", LC3), ("LC4", LC4),
-                      ("LB1", LB1), ("LB2", LB2), ("LB3", LB3),
-                      ("SC1", SC1), ("SC2", SC2), ("SC3", SC3), ("SC4", SC4),
-                      ("SB1", SB1), ("SB2", SB2), ("SB3", SB3)]:
+    for name, ser in [("LM1", LM1), ("LM2", LM2), ("LR1", LR1), ("LR2", LR2),
+                      ("LR3", LR3), ("LR4", LR4), ("LR5", LR5), ("LR6", LR6),
+                      ("SM1", SM1), ("SM2", SM2), ("SR1", SR1), ("SR2", SR2),
+                      ("SR3", SR3), ("SR4", SR4), ("SR5", SR5), ("SR6", SR6)]:
         out[name] = ser.fillna(False)
     return out
 
@@ -122,30 +126,32 @@ def explain(sig_row, cfg) -> dict:
     bias = r["bias"]
     bias_txt = ("강한 상승" if bias >= 2 else "약한 상승" if bias > 0 else
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
-    core_long = {
-        "종가 > 선행스팬1(초록선)": bool(r["LC1"]),
-        "전환선 > 기준선": bool(r["LC2"]),
-        "20일선 위": bool(r["LC3"]),
-        "하락 대각선 상향돌파": bool(r["LC4"]),
+    must_long = {
+        "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
+        "[필수] 20일선 위": bool(r["LM2"]),
     }
-    bonus_long = {
-        "MACD 골든크로스/0선 위": bool(r["LB1"]),
-        "스토캐스틱 %K > 50": bool(r["LB2"]),
-        "RCI 0선 위": bool(r["LB3"]),
+    rem_long = {
+        "후행스팬 > 26봉전": bool(r["LR1"]),
+        "전환선 > 기준선": bool(r["LR2"]),
+        "하락 대각선 상향돌파": bool(r["LR3"]),
+        "MACD 골든크로스/0선 위": bool(r["LR4"]),
+        "스토캐스틱 %K > 50": bool(r["LR5"]),
+        "RCI 0선 위": bool(r["LR6"]),
     }
-    core_short = {
-        "종가 < 선행스팬1(초록선)": bool(r["SC1"]),
-        "전환선 < 기준선": bool(r["SC2"]),
-        "20일선 아래": bool(r["SC3"]),
-        "상승 대각선 하향이탈": bool(r["SC4"]),
+    must_short = {
+        "[필수] 종가 < 선행스팬1": bool(r["SM1"]),
+        "[필수] 20일선 아래": bool(r["SM2"]),
     }
-    bonus_short = {
-        "MACD 데드크로스/0선 아래": bool(r["SB1"]),
-        "스토캐스틱 %K < 50": bool(r["SB2"]),
-        "RCI 0선 아래": bool(r["SB3"]),
+    rem_short = {
+        "후행스팬 < 26봉전": bool(r["SR1"]),
+        "전환선 < 기준선": bool(r["SR2"]),
+        "상승 대각선 하향이탈": bool(r["SR3"]),
+        "MACD 데드크로스/0선 아래": bool(r["SR4"]),
+        "스토캐스틱 %K < 50": bool(r["SR5"]),
+        "RCI 0선 아래": bool(r["SR6"]),
     }
-    checks_long = {**core_long, **bonus_long}
-    checks_short = {**core_short, **bonus_short}
+    checks_long = {**must_long, **rem_long}
+    checks_short = {**must_short, **rem_short}
     def tf_txt(s):
         if s >= 1: return "상승 ↗"
         if s > 0: return "약상승 ↗"
@@ -168,6 +174,6 @@ def explain(sig_row, cfg) -> dict:
         "sup_line": r.get("sup_line", float("nan")),
         "ma20": r.get("ma20", float("nan")),
         "checks_long": checks_long, "checks_short": checks_short,
-        "core_long": core_long, "bonus_long": bonus_long,
-        "core_short": core_short, "bonus_short": bonus_short,
+        "must_long": must_long, "rem_long": rem_long,
+        "must_short": must_short, "rem_short": rem_short,
     }
