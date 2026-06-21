@@ -18,22 +18,46 @@ import pandas as pd
 
 import data
 import strategy
+import indicators as ind
 
 KST = ZoneInfo("Asia/Seoul")
+
+
+def trendline_level(sig, kind, cfg):
+    """최근 스윙 고점(res)/저점(sup) 2개를 이어 대각선 추세선을 근사,
+    현재 봉 위치로 연장한 레벨을 반환. (눈으로 긋는 추세선의 근사치)"""
+    df = sig.tail(cfg["trend_lookback"])
+    piv = (ind.swing_high(df, cfg["pivot_left"], cfg["pivot_right"]) if kind == "res"
+           else ind.swing_low(df, cfg["pivot_left"], cfg["pivot_right"])).dropna()
+    if len(piv) < 2:
+        return None
+    pos = df.index.get_indexer([piv.index[-2], piv.index[-1]])
+    (i1, y1), (i2, y2) = (pos[0], piv.iloc[-2]), (pos[1], piv.iloc[-1])
+    if i2 == i1:
+        return None
+    slope = (y2 - y1) / (i2 - i1)
+    return float(y2 + slope * (len(df) - 1 - i2))
 
 
 def kst(ts):
     """UTC 타임스탬프를 한국시간으로 변환."""
     return ts.tz_convert(KST) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(KST)
 
-# sweep.py에서 가장 나았던 설정(과매도심화+추세순응)을 기본값으로
+# 선행스팬1 돌파 추세추종 규칙 (사용자 정의)
+# 백테스트 결론: 1시간봉 + 트레일링 청산 + 양방향이 최적. 손절=직전저점/고점.
 CFG = {
-    "atr_period": 14, "stoch_os": 15, "stoch_ob": 85,
-    "pivot_left": 3, "pivot_right": 3, "level_tol": 0.004,
-    "bias_long_min": 2.0, "bias_short_max": -2.0,
-    "atr_stop_mult": 1.5, "rr_trend": 2.0, "rr_counter": 1.5,
+    "atr_period": 14,
+    "rci_long": 26,
+    "chikou_shift": 26,
+    "pivot_left": 3, "pivot_right": 3,
+    "atr_stop_mult": 2.0,            # 직전저점/고점 없을 때 대체
+    "require_confirms": 4,           # 선행스팬1 돌파 + 보조 4/4 (진입 근거 5개 전부)
+    "exit_mode": "loose",
+    "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
+    "trend_lookback": 80,            # 대각선 추세선 근사용 최근 봉 수
 }
 SYMBOL = "BTCUSDT"
+TF = "15m"         # 주력 타임프레임 (진입 판단은 사용자가)
 
 
 def tg_send(text):
@@ -64,8 +88,8 @@ def emit(text):
 
 
 def snapshot():
-    """현재 데이터로 신호 컴포넌트 계산. 마지막 '마감된' 봉(-2)을 기준으로 본다."""
-    df15 = data.get_history(SYMBOL, "15m", bars=600)
+    """현재 데이터로 신호 계산. 주력=15분봉, 상위TF=1h/4h/1d. 마지막 마감봉(-2) 기준."""
+    df15 = data.get_history(SYMBOL, TF, bars=600)
     df1h = data.get_history(SYMBOL, "1h", bars=400)
     df4h = data.get_history(SYMBOL, "4h", bars=300)
     df1d = data.get_history(SYMBOL, "1d", bars=300)
@@ -75,56 +99,72 @@ def snapshot():
     return closed, closed_time, sig
 
 
+def enrich(closed, sig):
+    """explain + 대각선 추세선(익절 참고선) 레벨 부착."""
+    e = strategy.explain(closed, CFG)
+    e["res_line"] = trendline_level(sig.iloc[:-1], "res", CFG)   # 하락 추세선(숏 익절 기준)
+    e["sup_line"] = trendline_level(sig.iloc[:-1], "sup", CFG)   # 상승 추세선(롱 익절 기준)
+    return e
+
+
 def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
 def fmt_signal(e, when):
     d = e["direction"]
-    side = "🟢 롱(LONG)" if d == "LONG" else "🔴 숏(SHORT)"
-    stop_dist = e["atr"] * CFG["atr_stop_mult"]
-    if d == "LONG":
-        sl = e["close"] - stop_dist
-        tp2 = e["close"] + stop_dist * CFG["rr_trend"]
-        tp1 = e["close"] + stop_dist * CFG["rr_counter"]
-        checks = e["checks_long"]
+    long_ = d == "LONG"
+    side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
+    px = e["close"]
+    # 지정가 진입 권장 (1호가 아래/위)
+    limit = px * (1 - CFG["limit_offset"]) if long_ else px * (1 + CFG["limit_offset"])
+    # 손절선 = 직전저점(롱)/직전고점(숏), 없으면 ATR 대체
+    swing = e["swing_low"] if long_ else e["swing_high"]
+    bad = (swing != swing) or (long_ and swing >= px) or (not long_ and swing <= px)
+    if bad:
+        swing = px - e["atr"] * CFG["atr_stop_mult"] * (1 if long_ else -1)
+        sl_txt = f"{swing:,.1f} (직전저저점 불명확→ATR 대체)"
     else:
-        sl = e["close"] + stop_dist
-        tp2 = e["close"] - stop_dist * CFG["rr_trend"]
-        tp1 = e["close"] - stop_dist * CFG["rr_counter"]
-        checks = e["checks_short"]
-    aligned = abs(e["bias"]) >= 2 and ((e["bias"] > 0) == (d == "LONG"))
+        sl_txt = f"{swing:,.1f} ({'직전저점' if long_ else '직전고점'})"
+    risk_pct = abs(px - swing) / px * 100
+    checks = e["checks_long"] if long_ else e["checks_short"]
+    aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
+    # 익절 참고선(대각선 추세선): 롱=상승추세선 하향이탈 / 숏=하락추세선 상향돌파
+    exit_line = e["sup_line"] if long_ else e["res_line"]
+    exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
+                if exit_line else "대각선 추세선 돌파 시 (직접 판단)")
     return (
-        f"<b>{side} 신호</b> — {SYMBOL}\n"
-        f"⏱ {kst(when):%Y-%m-%d %H:%M} KST (15m 마감)\n"
-        f"💵 진입가 {e['close']:,.1f}\n"
-        f"🛑 손절 {sl:,.1f}  (ATR {e['atr']:,.1f} × {CFG['atr_stop_mult']})\n"
-        f"🎯 익절 {tp1:,.1f}(1.5R) / {tp2:,.1f}(2R)\n"
-        f"📊 상위TF: {e['bias_txt']} (bias {e['bias']:+.1f}) "
-        f"→ {'추세순응(2R 권장)' if aligned else '역추세(짧게 1.5R)'}\n"
-        f"<b>근거 체크</b>\n{fmt_checks(checks)}\n"
-        f"ℹ️ 구름 {e['cloud_bot']:,.0f}~{e['cloud_top']:,.0f} / "
-        f"직전고 {e['swing_high']:,.0f} 저 {e['swing_low']:,.0f} / "
-        f"스토%K {e['k']:.0f}\n"
-        f"<i>판독이지 매매권유 아님. 1분봉 직전고/저 돌파로 최종 확정.</i>"
+        f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
+        f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
+        f"📊 <b>상위TF 방향: {e['bias_txt']}</b> (bias {e['bias']:+.1f}) "
+        f"{'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
+        f"━━━━━━━━━━━━━\n"
+        f"💵 현재가 {px:,.1f}\n"
+        f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
+        f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
+        f"🎯 익절(시장가): 대각선 추세선 {exit_txt}\n"
+        f"━━━━━━━━━━━━━\n"
+        f"<b>진입 근거 체크리스트 (5/5)</b>\n{fmt_checks(checks)}\n"
+        f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
+        f"<i>판독이지 매매권유 아님. 진입=지정가/익절=시장가. 최종 판단은 본인.</i>"
     )
 
 
 def fmt_status(e, when):
-    """신호가 없을 때도 현재 상태를 토론용으로 출력."""
+    """신호가 없을 때도 현재 상태를 토론용으로 출력 (조건 충족도)."""
     cl, cs = e["checks_long"], e["checks_short"]
     return (
         f"📋 <b>{SYMBOL} 진단</b> {kst(when):%H:%M} KST 마감\n"
-        f"💵 {e['close']:,.1f} / 상위TF {e['bias_txt']}({e['bias']:+.1f}) / 스토%K {e['k']:.0f}\n"
-        f"구름 {e['cloud_bot']:,.0f}~{e['cloud_top']:,.0f} / 직전고 {e['swing_high']:,.0f} 저 {e['swing_low']:,.0f}\n"
-        f"<b>롱 조건</b> ({sum(cl.values())}/4)\n{fmt_checks(cl)}\n"
-        f"<b>숏 조건</b> ({sum(cs.values())}/4)\n{fmt_checks(cs)}"
+        f"💵 {e['close']:,.1f} / 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
+        f"상위TF {e['bias_txt']}({e['bias']:+.1f})\n"
+        f"<b>롱 조건</b> ({sum(cl.values())}/5)\n{fmt_checks(cl)}\n"
+        f"<b>숏 조건</b> ({sum(cs.values())}/5)\n{fmt_checks(cs)}"
     )
 
 
 def check_and_alert(last_alerted):
-    closed, when, _ = snapshot()
-    e = strategy.explain(closed, CFG)
+    closed, when, sig = snapshot()
+    e = enrich(closed, sig)
     if e["direction"] and when != last_alerted:
         emit(fmt_signal(e, when))
         return when
@@ -132,7 +172,7 @@ def check_and_alert(last_alerted):
 
 
 def run_live():
-    emit(f"🤖 맥점 알림봇 시작 — {SYMBOL} 15분봉 감시 중"
+    emit(f"🤖 맥점 알림봇 시작 — {SYMBOL} {TF} 감시 중"
          + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드: 텔레그램 미설정)"))
     last_alerted = None
     while True:
@@ -150,8 +190,8 @@ def run_live():
 
 
 def run_once():
-    closed, when, _ = snapshot()
-    e = strategy.explain(closed, CFG)
+    closed, when, sig = snapshot()
+    e = enrich(closed, sig)
     if e["direction"]:
         emit(fmt_signal(e, when))
     else:
@@ -160,13 +200,13 @@ def run_once():
 
 def run_cron():
     """클라우드(GitHub Actions)용: 방금 마감된 봉에 신호가 있을 때만 알림.
-    15분마다 호출되며, 마지막 마감봉이 '신선'할 때만 전송해 중복을 막는다."""
+    매시간 호출되며, 마지막 마감봉이 '신선'할 때만 전송해 중복을 막는다."""
     closed, when, sig = snapshot()
     closed_bar_close = sig.index[-1]                 # 마지막 마감봉의 종료시각(=형성중 봉 시작)
     now = pd.Timestamp.now(tz="UTC")
     age_min = (now - closed_bar_close).total_seconds() / 60
-    e = strategy.explain(closed, CFG)
-    if e["direction"] and age_min <= 16:
+    e = enrich(closed, sig)
+    if e["direction"] and age_min <= 16:             # 15분봉 + 지연 여유
         emit(fmt_signal(e, when))
     else:
         # 알림 없이 로그만 (텔레그램 전송 안 함)

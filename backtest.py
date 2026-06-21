@@ -6,70 +6,76 @@ import data
 import strategy
 
 CFG = {
-    # 지표
     "atr_period": 14,
-    "stoch_os": 25, "stoch_ob": 75,
-    "pivot_left": 3, "pivot_right": 3,
-    "level_tol": 0.004,            # 직전고저 근접 허용 0.4%
-    # 상위TF 필터 임계 (가중합 범위 약 -4.5 ~ +4.5)
-    "bias_long_min": 0.0,          # 롱은 비하락(중립 이상)에서만
-    "bias_short_max": 0.0,         # 숏은 비상승(중립 이하)에서만
-    # 리스크
-    "atr_stop_mult": 1.5,          # 손절 = 진입 ± ATR*mult
-    "rr_trend": 2.0,               # 추세순응 익절 R배수
-    "rr_counter": 1.5,             # 역추세 익절 R배수
+    "rci_long": 26,                # RCI long 기간 (9/13/26 중 long)
+    "chikou_shift": 26,            # 후행스팬 시프트
+    "pivot_left": 3, "pivot_right": 3,   # 직전저점/고점(손절) 피벗
+    "stop_mode": "swing",          # "swing"(직전저점/고점) 또는 "atr"
+    "atr_stop_mult": 2.0,          # stop_mode=atr 일 때
     "risk_per_trade": 0.01,        # 자본 1% 리스크
-    "fee": 0.0005,                 # 편도 0.05% (taker)
-    "slippage": 0.0003,            # 슬리피지 0.03%
+    # 비대칭 수수료/슬리피지: 진입=지정가(메이커), 청산=시장가(타이커)
+    "maker_fee": 0.0002, "taker_fee": 0.0005,
+    "entry_slip": 0.0, "exit_slip": 0.0003,
     "start_equity": 10000.0,
-    # 운영
-    "trend_align_thr": 2.0,        # |bias|>=이 값이면 추세순응으로 간주(2R), 아니면 1.5R
 }
 
 
 def run(sig: pd.DataFrame, cfg: dict):
+    """진입: 5조건 충족봉. 청산: 반대 신호(long_exit/short_exit) 또는 보호손절."""
     equity = cfg["start_equity"]
     trades = []
-    pos = None  # 진행중 포지션
+    pos = None
     eq_curve = []
 
     for t, row in sig.iterrows():
-        price = row["close"]
-        # 1) 포지션 관리 (손절/익절은 봉 고저로 판정, 보수적으로 손절 우선)
+        # 1) 포지션 관리: 손절(봉 고저, 시장가) 우선 → 신호청산(종가, 시장가)
         if pos:
+            exit_price, reason = None, None
             hit_sl = row["low"] <= pos["sl"] if pos["dir"] == 1 else row["high"] >= pos["sl"]
-            hit_tp = row["high"] >= pos["tp"] if pos["dir"] == 1 else row["low"] <= pos["tp"]
-            exit_price = None
-            reason = None
+            sig_exit = row["long_exit"] if pos["dir"] == 1 else row["short_exit"]
             if hit_sl:
                 exit_price, reason = pos["sl"], "SL"
-            elif hit_tp:
-                exit_price, reason = pos["tp"], "TP"
+            elif sig_exit:
+                exit_price, reason = row["close"], "EXIT"
             if exit_price is not None:
-                gross = (exit_price - pos["entry"]) * pos["dir"] * pos["qty"]
-                fee = (pos["entry"] + exit_price) * pos["qty"] * (cfg["fee"] + cfg["slippage"])
+                exit_fill = exit_price * (1 - cfg["exit_slip"] * pos["dir"])   # 시장가 슬리피지
+                gross = (exit_fill - pos["entry"]) * pos["dir"] * pos["qty"]
+                fee = (pos["entry"] * cfg["maker_fee"] + exit_fill * cfg["taker_fee"]) * pos["qty"]
                 pnl = gross - fee
                 equity += pnl
-                trades.append({**pos, "exit": exit_price, "reason": reason,
+                trades.append({**pos, "exit": exit_fill, "reason": reason,
                                "pnl": pnl, "exit_time": t, "equity": equity})
                 pos = None
 
-        # 2) 신규 진입 (포지션 없을 때만, 동시 양다리 금지)
+        # 2) 신규 진입 (포지션 없을 때만) — 지정가(메이커), 슬리피지≈0
         if pos is None and (row["long"] or row["short"]) and not np.isnan(row["atr"]):
             direction = 1 if row["long"] else -1
-            atr = row["atr"]
-            entry = price * (1 + cfg["slippage"] * direction)
-            stop_dist = atr * cfg["atr_stop_mult"]
-            sl = entry - stop_dist * direction
-            aligned = abs(row["bias"]) >= cfg["trend_align_thr"] and np.sign(row["bias"]) == direction
-            rr = cfg["rr_trend"] if aligned else cfg["rr_counter"]
-            tp = entry + stop_dist * rr * direction
-            risk_amt = equity * cfg["risk_per_trade"]
-            qty = risk_amt / stop_dist if stop_dist > 0 else 0
+            entry = row["close"] * (1 + cfg["entry_slip"] * direction)
+            # 손절 = 직전저점(롱)/직전고점(숏), 없거나 역방향이면 ATR 대체
+            if cfg.get("stop_mode", "swing") == "swing":
+                sl = row["swing_low"] if direction == 1 else row["swing_high"]
+                if pd.isna(sl) or (direction == 1 and sl >= entry) or (direction == -1 and sl <= entry):
+                    sl = entry - row["atr"] * cfg["atr_stop_mult"] * direction
+            else:
+                sl = entry - row["atr"] * cfg["atr_stop_mult"] * direction
+            stop_dist = abs(entry - sl)
+            if cfg.get("fixed_notional"):
+                qty = (equity * cfg["fixed_notional"]) / entry
+            else:
+                qty = (equity * cfg["risk_per_trade"]) / stop_dist if stop_dist > 0 else 0
+            if not cfg.get("use_stop", True):
+                sl = -1e18 if direction == 1 else 1e18
             if qty > 0:
-                pos = {"dir": direction, "entry": entry, "sl": sl, "tp": tp,
-                       "qty": qty, "entry_time": t, "rr": rr, "aligned": aligned}
+                pos = {"dir": direction, "entry": entry, "sl": sl,
+                       "qty": qty, "entry_time": t}
         eq_curve.append({"time": t, "equity": equity})
+
+    if pos is not None:                       # 미청산 포지션 마지막 종가로 정리
+        last = sig.iloc[-1]
+        gross = (last["close"] - pos["entry"]) * pos["dir"] * pos["qty"]
+        equity += gross
+        trades.append({**pos, "exit": last["close"], "reason": "OPEN_END",
+                       "pnl": gross, "exit_time": sig.index[-1], "equity": equity})
 
     return pd.DataFrame(trades), pd.DataFrame(eq_curve).set_index("time")
 
