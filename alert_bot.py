@@ -146,7 +146,7 @@ def fmt_signal(e, when):
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
         f"🎯 익절(시장가): 대각선 추세선 {exit_txt}\n"
         f"━━━━━━━━━━━━━\n"
-        f"<b>진입 근거 체크리스트 (5/5)</b>\n{fmt_checks(checks)}\n"
+        f"<b>진입 근거 체크리스트 ({sum(checks.values())}/5)</b>\n{fmt_checks(checks)}\n"
         f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 스토%K {e['k']:.0f} / RCI {e['rci_long']:.0f}\n"
         f"<i>판독이지 매매권유 아님. 진입=지정가/익절=시장가. 최종 판단은 본인.</i>"
     )
