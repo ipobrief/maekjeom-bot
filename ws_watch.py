@@ -43,8 +43,8 @@ class LiveState:
         self.df15 = None
         self.df1h = self.df4h = self.df1d = None
         self.htf_loaded_at = 0.0
-        self.alerted_bar = None       # 예비신호 보낸 형성봉 open_time
-        self.alerted_dir = None
+        self.alerted_bar = None       # 예비신호 추적 중인 형성봉 open_time
+        self.alerted_dirs = set()     # 이 형성봉에서 이미 알린 방향들(중복 방지)
         self.last_recompute = 0.0
 
     def load_base(self):
@@ -93,7 +93,8 @@ def handle_tick(st, k):
         else:
             print(f"[ws] {ab.kst(when):%m-%d %H:%M} 마감: {e['direction'] or '신호없음'} (확정 점검)")
         # 봉이 바뀌었으니 예비신호 추적 리셋
-        st.alerted_bar = st.alerted_dir = None
+        st.alerted_bar = None
+        st.alerted_dirs = set()
         return
 
     # 형성 중 봉 → 잠정 판정 (재계산 간격 제한)
@@ -102,13 +103,16 @@ def handle_tick(st, k):
     st.last_recompute = now
     row, when, sig = st.evaluate(-1)
     e = ab.enrich(row, sig)
-    mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-    if e["direction"] and (when != st.alerted_bar or e["direction"] != st.alerted_dir):
+    # 새 형성봉이면 알림 이력 초기화
+    if when != st.alerted_bar:
+        st.alerted_bar = when
+        st.alerted_dirs = set()
+    d = e["direction"]
+    # 같은 봉·같은 방향은 한 번만 (임계선 깜빡임 중복 방지). 되돌림 메시지는 보내지 않음.
+    if d and d not in st.alerted_dirs:
+        mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
         ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
-        st.alerted_bar, st.alerted_dir = when, e["direction"]
-    elif e["direction"] is None and when == st.alerted_bar:
-        ab.emit(f"↩️ {ab.kst(when):%H:%M} 형성봉 예비신호 해제(되돌림) — {ab.SYMBOL} {ab.TF}")
-        st.alerted_bar = st.alerted_dir = None
+        st.alerted_dirs.add(d)
 
 
 async def run(send_confirm=True):

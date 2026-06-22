@@ -202,22 +202,22 @@ def run_watch(poll_sec=20):
     확정 신호는 기존 --cron/--live가 봉 마감 때 별도로 보낸다."""
     emit(f"⚡ 맥점 실시간 감시 시작 — {SYMBOL} {TF} (현재가 기준, {poll_sec}초 간격)"
          + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드)"))
-    alerted_bar = None    # 예비신호 보낸 형성봉 시각
-    alerted_dir = None
+    alerted_bar = None    # 예비신호 추적 중인 형성봉 시각
+    alerted_dirs = set()  # 이 형성봉에서 이미 알린 방향들(중복 방지)
     while True:
         try:
             row, when, sig = snapshot(live=True)
             e = enrich(row, sig)
-            # 형성봉 마감까지 남은 분 (open_time + 15분 - 현재)
-            now = pd.Timestamp.now(tz="UTC")
-            mins_left = (when + pd.Timedelta(TF) - now).total_seconds() / 60
-            if e["direction"] and (when != alerted_bar or e["direction"] != alerted_dir):
+            if when != alerted_bar:           # 새 형성봉이면 이력 초기화
+                alerted_bar = when
+                alerted_dirs = set()
+            d = e["direction"]
+            # 같은 봉·같은 방향은 한 번만. 되돌림 메시지는 보내지 않음.
+            if d and d not in alerted_dirs:
+                now = pd.Timestamp.now(tz="UTC")
+                mins_left = (when + pd.Timedelta(TF) - now).total_seconds() / 60
                 emit(fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
-                alerted_bar, alerted_dir = when, e["direction"]
-            elif e["direction"] is None and when == alerted_bar:
-                # 같은 봉에서 신호가 사라짐(되돌림) → 잠정 취소 안내 후 재감시 허용
-                emit(f"↩️ {kst(when):%H:%M} 형성봉 예비신호 해제(되돌림) — {SYMBOL} {TF}")
-                alerted_bar, alerted_dir = None, None
+                alerted_dirs.add(d)
         except Exception as ex:
             print("실시간 점검 오류:", ex)
         time.sleep(poll_sec)
