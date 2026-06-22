@@ -1,8 +1,10 @@
 name: 맥점 알림봇 (BTC 15분)
 on:
-  schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch:
+  # 15분 cron 비활성화 (2026-06-22): Oracle Cloud 상시봇(ws_watch.py)이 실시간 알림 담당.
+  # 확정신호 중복 방지를 위해 스케줄 제거. 필요 시 아래 주석 해제하면 cron 부활.
+  # schedule:
+  #   - cron: "*/15 * * * *"
+  workflow_dispatch:   # 수동 실행은 유지(백업용)
 concurrency:
   group: alert-bot
   cancel-in-progress: false
