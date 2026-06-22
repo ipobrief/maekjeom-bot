@@ -52,9 +52,9 @@ class LiveState:
         self._load_htf()
 
     def _load_htf(self):
-        self.df1h = data.get_history(ab.SYMBOL, "1h", bars=400)
-        self.df4h = data.get_history(ab.SYMBOL, "4h", bars=300)
-        self.df1d = data.get_history(ab.SYMBOL, "1d", bars=300)
+        self.df1h = data.get_history(ab.SYMBOL, ab.HTF[0], bars=400)
+        self.df4h = data.get_history(ab.SYMBOL, ab.HTF[1], bars=300)
+        self.df1d = data.get_history(ab.SYMBOL, ab.HTF[2], bars=200)
         self.htf_loaded_at = dt.datetime.now().timestamp()
 
     def maybe_refresh_htf(self):

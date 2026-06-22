@@ -56,7 +56,10 @@ CFG = {
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
 }
 SYMBOL = "BTCUSDT"
-TF = "15m"         # 주력 타임프레임 (진입 판단은 사용자가)
+TF = "1h"          # 주력 타임프레임 (1시간봉이 백테스트상 구조적으로 우월)
+# 상위 타임프레임(방향 필터)과 표시 라벨 — 주력 TF에 맞춰 조정
+HTF = ("4h", "1d", "1w")
+HTF_LABELS = ("4시간", "일봉", "주봉")
 
 
 def tg_send(text):
@@ -91,9 +94,9 @@ def snapshot(live=False):
     live=False → 마지막 마감봉(-2) 기준(확정).
     live=True  → 형성 중 봉(-1) 기준(현재가를 종가로 보고 마감 전 잠정 판정)."""
     df15 = data.get_history(SYMBOL, TF, bars=600)
-    df1h = data.get_history(SYMBOL, "1h", bars=400)
-    df4h = data.get_history(SYMBOL, "4h", bars=300)
-    df1d = data.get_history(SYMBOL, "1d", bars=300)
+    df1h = data.get_history(SYMBOL, HTF[0], bars=400)
+    df4h = data.get_history(SYMBOL, HTF[1], bars=300)
+    df1d = data.get_history(SYMBOL, HTF[2], bars=200)
     sig = strategy.build_signals(df15, df1h, df4h, df1d, CFG)
     idx = -1 if live else -2
     return sig.iloc[idx], sig.index[idx], sig
@@ -142,7 +145,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None):
     return (
         head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
-        f"   · 1시간 {e['tf_1h']} / 4시간 {e['tf_4h']} / 일봉 {e['tf_1d']}\n"
+        f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
         f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
@@ -162,7 +165,7 @@ def fmt_status(e, when):
     return (
         f"📋 <b>{SYMBOL} 진단</b> {kst(when):%H:%M} KST 마감\n"
         f"💵 {e['close']:,.1f} / 선행스팬1 {e['senkou1']:,.0f} / 20일선 {e['ma20']:,.0f}\n"
-        f"상위TF — 1h {e['tf_1h']} / 4h {e['tf_4h']} / 일봉 {e['tf_1d']}\n"
+        f"상위TF — {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"<b>롱</b> 필수 {sum(e['must_long'].values())}/2 · 나머지 {sum(e['rem_long'].values())}/6\n{fmt_checks(cl)}\n"
         f"<b>숏</b> 필수 {sum(e['must_short'].values())}/2 · 나머지 {sum(e['rem_short'].values())}/6\n{fmt_checks(cs)}"
     )
