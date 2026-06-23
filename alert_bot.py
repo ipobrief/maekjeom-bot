@@ -130,10 +130,12 @@ def fmt_signal(e, when, provisional=False, mins_left=None):
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
-    # 익절 참고선(대각선): 롱=상승추세선(sup) 하향이탈 / 숏=하락추세선(res) 상향돌파
+    # 익절 참고선(대각선): 롱=상승대각선(sup) 하향이탈 / 숏=하락대각선(res) 상향돌파
+    # 단, exit_line이 진입가보다 수익 방향에 있어야 유효 (롱: sup < px / 숏: res < px)
     exit_line = e["sup_line"] if long_ else e["res_line"]
+    valid_exit = (exit_line == exit_line) and (long_ and exit_line < px or not long_ and exit_line < px)
     exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
-                if exit_line == exit_line else "대각선 추세선 돌파 시 (직접 판단)")
+                if valid_exit else "대각선 추세선 미산출 — 익절 직접 판단")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"

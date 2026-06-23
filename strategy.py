@@ -6,21 +6,49 @@ import indicators as ind
 
 
 def tf_bias(df: pd.DataFrame) -> pd.Series:
-    """단일 타임프레임의 추세 점수 (-1 하락 / 0 중립 / +1 상승).
-    일목 구름 위치 + 전환선·기준선 정렬로 판정."""
+    """단일 타임프레임의 추세 점수.
+    일목 구름+전환기준선(-1~+1) + 오실레이터 방향(-1~+1) 합산 → 총 -2~+2."""
     ich = ind.ichimoku(df)
     c = df["close"]
+
+    # ── 일목 구름 + 전환/기준선 (-1 ~ +1) ──
     above_cloud = c > ich["cloud_top"]
     below_cloud = c < ich["cloud_bot"]
     tk_up = ich["tenkan"] > ich["kijun"]
-    score = pd.Series(0, index=df.index, dtype=float)
-    score[above_cloud & tk_up] = 1.0
-    score[below_cloud & ~tk_up] = -1.0
-    # 구름 안(중립)은 전환/기준선 방향만 약하게 반영
+    ichi_score = pd.Series(0.0, index=df.index)
+    ichi_score[above_cloud & tk_up] = 1.0
+    ichi_score[below_cloud & ~tk_up] = -1.0
     inside = ~above_cloud & ~below_cloud
-    score[inside & tk_up] = 0.5
-    score[inside & ~tk_up] = -0.5
-    return score
+    ichi_score[inside & tk_up] = 0.5
+    ichi_score[inside & ~tk_up] = -0.5
+
+    # ── 오실레이터 방향 (-1 ~ +1) ──
+    macd_line, _, _ = ind.macd(c)
+    k, _ = ind.stochastic(df)
+    rci = ind.rci(c, 26)
+
+    macd_up = macd_line > macd_line.shift(1)
+    k_up = k > k.shift(1)
+    rci_up = rci > rci.shift(1)
+
+    osc_score = pd.Series(0.0, index=df.index)
+
+    # MACD: 방향 + 0선 위치
+    osc_score += macd_up.map({True: 0.4, False: -0.4})
+    osc_score += (macd_line > 0).map({True: 0.2, False: -0.2})  # 0선 위치 보정
+
+    # 스토캐스틱: 방향 + 50선 위치
+    osc_score += k_up.map({True: 0.2, False: -0.2})
+    osc_score += (k > 50).map({True: 0.1, False: -0.1})
+
+    # RCI: 방향 + 0선 위치
+    osc_score += rci_up.map({True: 0.2, False: -0.2})
+    osc_score += (rci > 0).map({True: 0.1, False: -0.1})
+
+    # 오실레이터 합산 클램프 (-1 ~ +1)
+    osc_score = osc_score.clip(-1.0, 1.0)
+
+    return ichi_score + osc_score
 
 
 def align_bias(higher: pd.Series, target_index: pd.DatetimeIndex) -> pd.Series:
@@ -153,11 +181,13 @@ def explain(sig_row, cfg) -> dict:
     checks_long = {**must_long, **rem_long}
     checks_short = {**must_short, **rem_short}
     def tf_txt(s):
-        if s >= 1: return "상승 ↗"
+        if s >= 1.5: return "강상승 ↗"
+        if s >= 0.5: return "상승 ↗"
         if s > 0: return "약상승 ↗"
         if s == 0: return "중립 →"
-        if s > -1: return "약하락 ↘"
-        return "하락 ↘"
+        if s > -0.5: return "약하락 ↘"
+        if s > -1.5: return "하락 ↘"
+        return "강하락 ↘"
 
     return {
         "direction": direction,
