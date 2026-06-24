@@ -29,8 +29,8 @@ import indicators as ind
 # ── 타임프레임 설정 ────────────────────────────────────────────────────────────
 SYMBOL = "BTCUSDT"
 TF = "15m"
-HTF = ("1h", "4h", "1d")
-HTF_LABELS = ("1시간", "4시간", "일봉")
+HTF = ("30m", "1h", "2h")
+HTF_LABELS = ("30분", "1시간", "2시간")
 KST = ZoneInfo("Asia/Seoul")
 
 CFG = {
