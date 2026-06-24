@@ -28,9 +28,9 @@ import indicators as ind
 
 # ── 타임프레임 설정 ────────────────────────────────────────────────────────────
 SYMBOL = "BTCUSDT"
-TF = "1m"
-HTF = ("5m", "15m", "1h")
-HTF_LABELS = ("5분", "15분", "1시간")
+TF = "15m"
+HTF = ("1h", "4h", "1d")
+HTF_LABELS = ("1시간", "4시간", "일봉")
 KST = ZoneInfo("Asia/Seoul")
 
 CFG = {
@@ -46,8 +46,8 @@ CFG = {
 }
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
-HTF_REFRESH_SEC = 60         # 상위TF 갱신 주기(1m봇은 더 자주)
-RECOMPUTE_MIN_SEC = 1        # 잠정 재계산 최소 간격
+HTF_REFRESH_SEC = 300        # 상위TF 갱신 주기
+RECOMPUTE_MIN_SEC = 3        # 잠정 재계산 최소 간격
 
 
 # ── 유틸 ───────────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None):
     exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
                 if valid_exit else "대각선 추세선 미산출 — 익절 직접 판단")
     if provisional:
-        left = f"마감 {mins_left:.0f}초 전" if mins_left is not None else "마감 전"
+        left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"
                 f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST 봉 형성중 · {left}\n"
                 f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소 가능\n")
@@ -165,7 +165,7 @@ class LiveState:
         self.last_recompute = 0.0
 
     def load_base(self):
-        self.df1m = data.get_history(SYMBOL, TF, bars=1000)
+        self.df1m = data.get_history(SYMBOL, TF, bars=600)
         self._load_htf()
 
     def _load_htf(self):
@@ -184,7 +184,7 @@ class LiveState:
                "low": float(k["l"]), "close": float(k["c"]),
                "volume": float(k["v"])}
         self.df1m.loc[t] = row
-        self.df1m = self.df1m[~self.df1m.index.duplicated(keep="last")].sort_index().tail(1000)
+        self.df1m = self.df1m[~self.df1m.index.duplicated(keep="last")].sort_index().tail(600)
         return t
 
     def evaluate(self, idx):
@@ -219,8 +219,8 @@ def handle_tick(st, k):
         st.alerted_dirs = set()
     d = e["direction"]
     if d and d not in st.alerted_dirs:
-        secs_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds()
-        emit(fmt_signal(e, when, provisional=True, mins_left=max(0, secs_left)))
+        mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+        emit(fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
         st.alerted_dirs.add(d)
 
 
