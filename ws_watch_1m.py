@@ -229,7 +229,7 @@ async def run(send_confirm=True):
     st = LiveState()
     print("기준 히스토리 로드 중…")
     st.load_base()
-    emit(f"📡 맥점 웹소켓 감시 시작 — {SYMBOL} {TF} "
+    print(f"📡 맥점 웹소켓 감시 시작 — {SYMBOL} {TF} "
          f"({'2단계: 예비+확정' if send_confirm else '예비만'})"
          + ("" if os.environ.get("TELEGRAM_TOKEN_1M") else " (콘솔 모드)"))
     while True:

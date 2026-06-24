@@ -120,9 +120,9 @@ async def run(send_confirm=True):
     st = LiveState()
     print("기준 히스토리 로드 중…")
     st.load_base()
-    ab.emit(f"📡 맥점 웹소켓 감시 시작 — {ab.SYMBOL} {ab.TF} "
-            f"({'2단계: 예비+확정' if send_confirm else '예비만'})"
-            + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드)"))
+    print(f"📡 맥점 웹소켓 감시 시작 — {ab.SYMBOL} {ab.TF} "
+          f"({'2단계: 예비+확정' if send_confirm else '예비만'})"
+          + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드)"))
     while True:  # 끊기면 자동 재연결
         try:
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=20) as ws:
