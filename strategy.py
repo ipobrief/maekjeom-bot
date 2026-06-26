@@ -94,7 +94,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR3 = d["close"] > res_line                        # 하락 대각선 상향돌파
     LR4 = macd_gc | (macd_line > 0)                    # MACD GC/0선위
     LR5 = k > 50                                       # 스토 50 위
-    LR6 = rci_long > 0                                 # RCI 0선 위
+    rci_rising = (rci_long > rci_long.shift(1)) & (rci_long.shift(1) > rci_long.shift(2))
+    LR6 = (rci_long > 0) | rci_rising                 # RCI 0선 위 또는 2봉 연속 상승전환
     long_rem = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
                 + LR4.astype(int) + LR5.astype(int) + LR6.astype(int))
     long_all = (LM1 & LM2 & (long_rem >= rem_req)).fillna(False)
@@ -108,7 +109,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     SR3 = d["close"] < sup_line                        # 상승 대각선 하향이탈
     SR4 = macd_dc | (macd_line < 0)
     SR5 = k < 50
-    SR6 = rci_long < 0
+    rci_falling = (rci_long < rci_long.shift(1)) & (rci_long.shift(1) < rci_long.shift(2))
+    SR6 = (rci_long < 0) | rci_falling                # RCI 0선 아래 또는 2봉 연속 하락전환
     short_rem = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
                  + SR4.astype(int) + SR5.astype(int) + SR6.astype(int))
     short_all = (SM1 & SM2 & (short_rem >= rem_req)).fillna(False)
