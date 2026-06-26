@@ -140,7 +140,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
     out["long"], out["short"] = long_entry, short_entry
-    out["long_all"], out["short_all"] = long_all, short_all
+    out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
     for name, ser in [("LM1", LM1), ("LM2", LM2), ("LR1", LR1), ("LR2", LR2),
                       ("LR3", LR3), ("LR4", LR4), ("LR5", LR5), ("LR6", LR6),
