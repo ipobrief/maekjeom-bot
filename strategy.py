@@ -92,7 +92,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR1 = chikou_above                                # 후행스팬 > 26봉전
     LR2 = tenkan > kijun                              # 전환선 > 기준선
     LR3 = d["close"] > res_line                        # 하락 대각선 상향돌파
-    LR4 = macd_gc | (macd_line > 0)                    # MACD GC/0선위
+    LR4 = macd_gc                                       # MACD 골든크로스
     LR5 = k > 50                                       # 스토 50 위
     rci_rising = (rci_long > rci_long.shift(1)) & (rci_long.shift(1) > rci_long.shift(2))
     LR6 = (rci_long > 0) | rci_rising                 # RCI 0선 위 또는 2봉 연속 상승전환
@@ -107,7 +107,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     SR1 = chikou_below
     SR2 = tenkan < kijun
     SR3 = d["close"] < sup_line                        # 상승 대각선 하향이탈
-    SR4 = macd_dc | (macd_line < 0)
+    SR4 = macd_dc                                       # MACD 데드크로스
     SR5 = k < 50
     rci_falling = (rci_long < rci_long.shift(1)) & (rci_long.shift(1) < rci_long.shift(2))
     SR6 = (rci_long < 0) | rci_falling                # RCI 0선 아래 또는 2봉 연속 하락전환
@@ -140,6 +140,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
     out["long"], out["short"] = long_entry, short_entry
+    out["long_all"], out["short_all"] = long_all, short_all
     out["long_exit"], out["short_exit"] = long_exit, short_exit
     for name, ser in [("LM1", LM1), ("LM2", LM2), ("LR1", LR1), ("LR2", LR2),
                       ("LR3", LR3), ("LR4", LR4), ("LR5", LR5), ("LR6", LR6),
@@ -153,6 +154,7 @@ def explain(sig_row, cfg) -> dict:
     """단일 봉의 신호 근거를 사람이 읽을 수 있는 dict로 분해."""
     r = sig_row
     direction = "LONG" if r["long"] else ("SHORT" if r["short"] else None)
+    direction_active = "LONG" if r.get("long_all", r["long"]) else ("SHORT" if r.get("short_all", r["short"]) else None)
     bias = r["bias"]
     bias_txt = ("강한 상승" if bias >= 2 else "약한 상승" if bias > 0 else
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
@@ -193,6 +195,7 @@ def explain(sig_row, cfg) -> dict:
 
     return {
         "direction": direction,
+        "direction_active": direction_active,
         "close": r["close"], "atr": r["atr"],
         "bias": bias, "bias_txt": bias_txt,
         "tf_1h": tf_txt(r.get("bias_1h", 0)),

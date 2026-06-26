@@ -217,7 +217,7 @@ def handle_tick(st, k):
     if when != st.alerted_bar:
         st.alerted_bar = when
         st.alerted_dirs = set()
-    d = e["direction"]
+    d = e.get("direction_active", e["direction"])
     if d and d not in st.alerted_dirs:
         mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
         emit(fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
