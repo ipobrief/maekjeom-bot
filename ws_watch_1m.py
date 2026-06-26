@@ -47,7 +47,8 @@ CFG = {
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
 HTF_REFRESH_SEC = 300        # 상위TF 갱신 주기
-RECOMPUTE_MIN_SEC = 3        # 잠정 재계산 최소 간격
+RECOMPUTE_MIN_SEC = 60       # 잠정 재계산 최소 간격 (중복 방지)
+PROV_MIN_MINS_LEFT = 5       # 잔여시간 이 미만이면 잠정신호 억제 (분)
 
 
 # ── 유틸 ───────────────────────────────────────────────────────────────────────
@@ -220,7 +221,11 @@ def handle_tick(st, k):
     d = e.get("direction_active", e["direction"])
     if d and d not in st.alerted_dirs:
         mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-        emit(fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
+        mins_left = max(0, mins_left)
+        if mins_left < PROV_MIN_MINS_LEFT:
+            st.alerted_dirs.add(d)
+            return
+        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left))
         st.alerted_dirs.add(d)
 
 

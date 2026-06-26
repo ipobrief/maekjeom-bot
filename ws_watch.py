@@ -33,7 +33,8 @@ import alert_bot as ab
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{ab.SYMBOL.lower()}@kline_{ab.TF}"
 HTF_REFRESH_SEC = 300        # 상위TF(1h/4h/1d) 갱신 주기
-RECOMPUTE_MIN_SEC = 3        # 잠정 재계산 최소 간격(틱 폭주 방지)
+RECOMPUTE_MIN_SEC = 120      # 잠정 재계산 최소 간격 (중복 방지)
+PROV_MIN_MINS_LEFT = 15      # 잔여시간 이 미만이면 잠정신호 억제 (분)
 
 
 class LiveState:
@@ -111,7 +112,11 @@ def handle_tick(st, k):
     # 같은 봉·같은 방향은 한 번만 (임계선 깜빡임 중복 방지). 되돌림 메시지는 보내지 않음.
     if d and d not in st.alerted_dirs:
         mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=max(0, mins_left)))
+        mins_left = max(0, mins_left)
+        if mins_left < PROV_MIN_MINS_LEFT:
+            st.alerted_dirs.add(d)
+            return
+        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left))
         st.alerted_dirs.add(d)
 
 
