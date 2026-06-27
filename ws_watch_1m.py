@@ -163,6 +163,7 @@ class LiveState:
         self.htf_loaded_at = 0.0
         self.alerted_bar = None
         self.alerted_dirs = set()
+        self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
         self.last_recompute = 0.0
 
     def load_base(self):
@@ -202,10 +203,14 @@ def handle_tick(st, k):
         st.maybe_refresh_htf()
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
-        if e["direction"] and getattr(handle_tick, "send_confirm", True):
+        d = e["direction"]
+        # 직전 발송 방향과 같으면 연속 신호 → 억제(반대 신호가 끼면 다시 허용)
+        if d and d != st.last_dir and getattr(handle_tick, "send_confirm", True):
             emit(fmt_signal(e, when, provisional=False))
+            st.last_dir = d
         else:
-            print(f"[ws-1m] {kst(when):%m-%d %H:%M:%S} 마감: {e['direction'] or '신호없음'}")
+            why = "방향전환 없음" if d and d == st.last_dir else (d or "신호없음")
+            print(f"[ws-1m] {kst(when):%m-%d %H:%M:%S} 마감: {why}")
         st.alerted_bar = None
         st.alerted_dirs = set()
         return
@@ -219,7 +224,9 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
-    if d and d not in st.alerted_dirs:
+    # 억제: ① 같은 봉·같은 방향 중복(임계선 깜빡임) ② 직전 발송과 같은 방향 연속(봉 넘어 노이즈).
+    #       중간에 반대 신호가 끼면 last_dir이 바뀌어 다음 동일방향은 다시 허용.
+    if d and d not in st.alerted_dirs and d != st.last_dir:
         must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if not must_ok:
             st.alerted_dirs.add(d)
@@ -231,6 +238,7 @@ def handle_tick(st, k):
             return
         emit(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
         st.alerted_dirs.add(d)
+        st.last_dir = d
 
 
 async def run(send_confirm=True):

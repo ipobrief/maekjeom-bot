@@ -88,6 +88,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
 
     rci_rising  = (rci_long > rci_long.shift(1)) & (rci_long.shift(1) > rci_long.shift(2))
     rci_falling = (rci_long < rci_long.shift(1)) & (rci_long.shift(1) < rci_long.shift(2))
+    k_up   = k > k.shift(1)                  # 스토 %K 방향 상향
+    k_down = k < k.shift(1)                  # 스토 %K 방향 하향
 
     # ── 공통 조건
     LM1 = d["close"] > senkou1                        # [필수] 선행스팬1 위
@@ -95,13 +97,13 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR1 = chikou_above
     LR2 = tenkan > kijun
     LR3 = d["close"] > res_line
-    LR5 = k > 50
+    LR5 = (k > 50) & k_up                              # 스토 50 위 + 상향(꺾이면 무효)
     SM1 = d["close"] < senkou1
     SM2 = d["close"] < ma20
     SR1 = chikou_below
     SR2 = tenkan < kijun
     SR3 = d["close"] < sup_line
-    SR5 = k < 50
+    SR5 = (k < 50) & k_down                            # 스토 50 아래 + 하향(꺾이면 무효)
 
     # ── 잠정(provisional): MACD GC/DC만, RCI 방향전환 포함
     LR4_p = macd_gc
@@ -180,7 +182,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 > 기준선": bool(r["LR2"]),
         "하락 대각선 상향돌파": bool(r["LR3"]),
         "MACD 골든크로스/0선 위": bool(r["LR4"]),
-        "스토캐스틱 %K > 50": bool(r["LR5"]),
+        "스토캐스틱 %K>50 & 상향": bool(r["LR5"]),
         "RCI 0선 위": bool(r["LR6"]),
     }
     must_short = {
@@ -192,7 +194,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 < 기준선": bool(r["SR2"]),
         "상승 대각선 하향이탈": bool(r["SR3"]),
         "MACD 데드크로스/0선 아래": bool(r["SR4"]),
-        "스토캐스틱 %K < 50": bool(r["SR5"]),
+        "스토캐스틱 %K<50 & 하향": bool(r["SR5"]),
         "RCI 0선 아래": bool(r["SR6"]),
     }
     checks_long = {**must_long, **rem_long}
