@@ -111,12 +111,17 @@ def handle_tick(st, k):
     d = e.get("direction_active", e["direction"])
     # 같은 봉·같은 방향은 한 번만 (임계선 깜빡임 중복 방지). 되돌림 메시지는 보내지 않음.
     if d and d not in st.alerted_dirs:
+        # 필수조건(선행스팬1·20일선)이 실제로 충족된 경우만 발송
+        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
+        if not must_ok:
+            st.alerted_dirs.add(d)
+            return
         mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
         mins_left = max(0, mins_left)
         if mins_left < PROV_MIN_MINS_LEFT:
             st.alerted_dirs.add(d)
             return
-        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left))
+        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
         st.alerted_dirs.add(d)
 
 

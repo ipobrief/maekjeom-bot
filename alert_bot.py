@@ -111,8 +111,8 @@ def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
-def fmt_signal(e, when, provisional=False, mins_left=None):
-    d = e["direction"]
+def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
+    d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
     px = e["close"]

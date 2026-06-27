@@ -103,8 +103,8 @@ def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
-def fmt_signal(e, when, provisional=False, mins_left=None):
-    d = e["direction"]
+def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
+    d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
     px = e["close"]
@@ -220,12 +220,16 @@ def handle_tick(st, k):
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
     if d and d not in st.alerted_dirs:
+        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
+        if not must_ok:
+            st.alerted_dirs.add(d)
+            return
         mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
         mins_left = max(0, mins_left)
         if mins_left < PROV_MIN_MINS_LEFT:
             st.alerted_dirs.add(d)
             return
-        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left))
+        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
         st.alerted_dirs.add(d)
 
 
