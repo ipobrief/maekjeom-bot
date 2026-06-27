@@ -90,8 +90,9 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     # 롱: 선 위 + GC(빠른선>느린선) + 상향 / 숏: 선 아래 + DC + 하향. 꺾이거나 반대크로스면 중립.
     macd_long  = (macd_line > 0) & (macd_line > macd_sig) & (macd_line > macd_line.shift(1))
     macd_short = (macd_line < 0) & (macd_line < macd_sig) & (macd_line < macd_line.shift(1))
-    stoch_long  = (k > 50) & (k > dd) & (k > k.shift(1))   # 50위 + GC(%K>%D) + 상향
-    stoch_short = (k < 50) & (k < dd) & (k < k.shift(1))   # 50아래 + DC(%K<%D) + 하향
+    # 과열(80↑)에선 상방이어도 롱❌(하락 위험), 침체(20↓)에선 하방이어도 숏❌(상승 위험)
+    stoch_long  = (k > 50) & (k < 80) & (k > dd) & (k > k.shift(1))   # 50~80 + GC(%K>%D) + 상향
+    stoch_short = (k < 50) & (k > 20) & (k < dd) & (k < k.shift(1))   # 20~50 + DC(%K<%D) + 하향
     # RCI는 단일선(26) → 위치+각도만. 0선 막 상방돌파가 최적 롱타점, 막 하방돌파가 최적 숏타점.
     rci_long_ok  = (rci_long > 0) & rci_up                 # 0선 위 + 상향
     rci_short_ok = (rci_long < 0) & rci_down               # 0선 아래 + 하향
@@ -187,7 +188,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 > 기준선": bool(r["LR2"]),
         "하락 대각선 상향돌파": bool(r["LR3"]),
         "MACD 0선위+GC+상향": bool(r["LR4"]),
-        "스토 50위+GC+상향": bool(r["LR5"]),
+        "스토 50~80+GC+상향": bool(r["LR5"]),
         "RCI 0선위+상향": bool(r["LR6"]),
     }
     must_short = {
@@ -199,7 +200,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 < 기준선": bool(r["SR2"]),
         "상승 대각선 하향이탈": bool(r["SR3"]),
         "MACD 0선아래+DC+하향": bool(r["SR4"]),
-        "스토 50아래+DC+하향": bool(r["SR5"]),
+        "스토 20~50+DC+하향": bool(r["SR5"]),
         "RCI 0선아래+하향": bool(r["SR6"]),
     }
     checks_long = {**must_long, **rem_long}
