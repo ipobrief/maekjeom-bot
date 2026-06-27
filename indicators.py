@@ -42,7 +42,9 @@ def macd(s: pd.Series, fast=12, slow=26, signal=9):
     return macd_line, signal_line, hist
 
 
-def stochastic(df: pd.DataFrame, k=14, d=3, smooth=3):
+def stochastic(df: pd.DataFrame, k=12, d=5, smooth=5):
+    """스토캐스틱 슬로우 — 사용자 키움식 설정 기본값(%K길이 12 / %K스무딩 5 / %D스무딩 5).
+    k=%K길이(룩백), smooth=%K스무딩(fastK→slowK), d=%D스무딩(slowK→%D)."""
     ll = df["low"].rolling(k).min()
     hh = df["high"].rolling(k).max()
     fast_k = 100 * (df["close"] - ll) / (hh - ll).replace(0, np.nan)
