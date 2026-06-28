@@ -72,8 +72,10 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     bd = align_bias(tf_bias(df1d), d.index)
     bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
-    senkou1 = ich["senkou1"]
     tenkan, kijun = ich["tenkan"], ich["kijun"]
+    # 선행스팬1은 차트 '끝점'(현재시점 (전환선+기준선)/2, shift 없음)과 종가 비교.
+    # ich["senkou1"]은 shift(26)된 26봉 전 과거값이라 종가 비교에 부적합(회원님 규칙).
+    senkou1 = (tenkan + kijun) / 2
     ma20 = ind.sma(d["close"], 20)
     tp = cfg.get("trend_pivot", 5)
     res_line = ind.trendline_series(d, "res", tp, tp)   # 하락 대각선(고점2점)
