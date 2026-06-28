@@ -120,6 +120,15 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
+    # 강도 배지: 나머지 6/6 + 장기RCI(26) 정렬 = 베스트 / 6/6만 = 강신호
+    rem_n = sum(rem.values())
+    green_ok = (e["rci_long"] > 0) if long_ else (e["rci_long"] < 0)
+    if rem_n == 6 and green_ok:
+        badge = "⭐ <b>베스트 타점</b> — 나머지 6/6 + 장기RCI(26)까지 정렬\n"
+    elif rem_n == 6:
+        badge = "🔥 <b>강신호</b> — 나머지 6/6 (장기RCI 26은 대기)\n"
+    else:
+        badge = ""
     exit_line = e["sup_line"] if long_ else e["res_line"]
     valid_exit = (exit_line == exit_line) and (
         long_ and exit_line < px or not long_ and exit_line < px)
@@ -134,7 +143,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = (f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
                 f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST ({TF} 마감)\n")
     return (
-        head +
+        badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"━━━━━━━━━━━━━\n"
