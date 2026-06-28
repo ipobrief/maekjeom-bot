@@ -65,7 +65,9 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     ich = ind.ichimoku(d)
     macd_line, macd_sig, macd_hist = ind.macd(d["close"])
     k, dd = ind.stochastic(d)
-    rci_long = ind.rci(d["close"], cfg["rci_long"])
+    rci_long = ind.rci(d["close"], cfg["rci_long"])             # RCI 장기(26·초록) — 트렌드 참고용
+    rci_s = ind.rci(d["close"], cfg.get("rci_short", 9))        # RCI 단기(9·파랑)
+    rci_m = ind.rci(d["close"], cfg.get("rci_mid", 13))         # RCI 중기(13·오렌지)
     atr = ind.atr(d, cfg["atr_period"])
     b1 = align_bias(tf_bias(df1h), d.index)
     b4 = align_bias(tf_bias(df4h), d.index)
@@ -85,19 +87,17 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     chikou_below = d["close"] < d["close"].shift(cs)
     rem_req = cfg.get("rem_req", 3)         # 필수2 외 나머지 6개 중 몇 개
 
-    rci_up   = rci_long > rci_long.shift(1)   # RCI(26·초록선) 상향
-    rci_down = rci_long < rci_long.shift(1)   # RCI(26·초록선) 하향
-
-    # ── 오실레이터 타점 = 위치(편 결정) + 크로스상태 + 각도 정렬 ──────────────
-    # 롱: 선 위 + GC(빠른선>느린선) + 상향 / 숏: 선 아래 + DC + 하향. 꺾이거나 반대크로스면 중립.
-    macd_long  = (macd_line > 0) & (macd_line > macd_sig) & (macd_line > macd_line.shift(1))
-    macd_short = (macd_line < 0) & (macd_line < macd_sig) & (macd_line < macd_line.shift(1))
-    # 과열(80↑)에선 상방이어도 롱❌(하락 위험), 침체(20↓)에선 하방이어도 숏❌(상승 위험)
-    stoch_long  = (k > 50) & (k < 80) & (k > dd) & (k > k.shift(1))   # 50~80 + GC(%K>%D) + 상향
-    stoch_short = (k < 50) & (k > 20) & (k < dd) & (k < k.shift(1))   # 20~50 + DC(%K<%D) + 하향
-    # RCI는 단일선(26) → 위치+각도만. 0선 막 상방돌파가 최적 롱타점, 막 하방돌파가 최적 숏타점.
-    rci_long_ok  = (rci_long > 0) & rci_up                 # 0선 위 + 상향
-    rci_short_ok = (rci_long < 0) & rci_down               # 0선 아래 + 하향
+    # ── 오실레이터 타점: MACD=방향 / 스토=진입시점 / RCI=보조 ────────────────
+    # MACD = 방향: 골든크로스(>시그널)면 롱, 데드크로스면 숏 (0선 돌파 불필요).
+    macd_long  = macd_line > macd_sig
+    macd_short = macd_line < macd_sig
+    # 스토캐스틱 = 진입시점: 50선 돌파(50~80, %K>%D, 상향). 과열80↑·침체20↓ 제외.
+    stoch_long  = (k > 50) & (k < 80) & (k > dd) & (k > k.shift(1))
+    stoch_short = (k < 50) & (k > 20) & (k < dd) & (k < k.shift(1))
+    # RCI(보조): 단기선(9·파랑)이 중기선(13·오렌지) 골든크로스 + 단기선 0선 위 → 롱.
+    # 장기선(26·초록) 0선 돌파는 '롱 유지'일 뿐 진입엔 늦어서 안 씀.
+    rci_long_ok  = (rci_s > rci_m) & (rci_s > 0)
+    rci_short_ok = (rci_s < rci_m) & (rci_s < 0)
 
     # ── 공통 조건
     LM1 = d["close"] > senkou1                        # [필수] 선행스팬1 위
@@ -159,6 +159,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["k"] = k
     out["macd_line"] = macd_line
     out["rci_long"] = rci_long
+    out["rci_s"] = rci_s
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
@@ -189,9 +190,9 @@ def explain(sig_row, cfg) -> dict:
         "후행스팬 > 26봉전": bool(r["LR1"]),
         "전환선 > 기준선": bool(r["LR2"]),
         "하락 대각선 상향돌파": bool(r["LR3"]),
-        "MACD 0선위+GC+상향": bool(r["LR4"]),
-        "스토 50~80+GC+상향": bool(r["LR5"]),
-        "RCI 0선위+상향": bool(r["LR6"]),
+        "MACD 골든크로스(방향)": bool(r["LR4"]),
+        "스토 50돌파(50~80·진입)": bool(r["LR5"]),
+        "RCI 단>중GC & 0선위": bool(r["LR6"]),
     }
     must_short = {
         "[필수] 종가 < 선행스팬1": bool(r["SM1"]),
@@ -201,9 +202,9 @@ def explain(sig_row, cfg) -> dict:
         "후행스팬 < 26봉전": bool(r["SR1"]),
         "전환선 < 기준선": bool(r["SR2"]),
         "상승 대각선 하향이탈": bool(r["SR3"]),
-        "MACD 0선아래+DC+하향": bool(r["SR4"]),
-        "스토 20~50+DC+하향": bool(r["SR5"]),
-        "RCI 0선아래+하향": bool(r["SR6"]),
+        "MACD 데드크로스(방향)": bool(r["SR4"]),
+        "스토 50이탈(20~50·진입)": bool(r["SR5"]),
+        "RCI 단<중DC & 0선아래": bool(r["SR6"]),
     }
     checks_long = {**must_long, **rem_long}
     checks_short = {**must_short, **rem_short}
@@ -224,7 +225,7 @@ def explain(sig_row, cfg) -> dict:
         "tf_1h": tf_txt(r.get("bias_1h", 0)),
         "tf_4h": tf_txt(r.get("bias_4h", 0)),
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
-        "k": r["k"], "rci_long": r["rci_long"],
+        "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
         "swing_high": r.get("swing_high", float("nan")),
