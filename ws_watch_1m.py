@@ -38,7 +38,7 @@ CFG = {
     "rci_long": 26,
     "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3,
-    "trend_pivot": 5,
+    "trend_pivot": 3,    # 대각선 스윙 강도(3=20일선에 가장 근접)
     "rem_req": 3,
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,
