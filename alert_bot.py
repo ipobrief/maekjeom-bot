@@ -140,10 +140,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         badge = ""
     # 익절 참고선(대각선): 롱=상승대각선(sup) 하향이탈 / 숏=하락대각선(res) 상향돌파
     # 단, exit_line이 진입가보다 수익 방향에 있어야 유효 (롱: sup < px / 숏: res < px)
-    exit_line = e["sup_line"] if long_ else e["res_line"]
-    valid_exit = (exit_line == exit_line) and (long_ and exit_line < px or not long_ and exit_line < px)
-    exit_txt = (f"{exit_line:,.1f} {'하향이탈' if long_ else '상향돌파'} 시 (직접 판단)"
-                if valid_exit else "대각선 추세선 미산출 — 익절 직접 판단")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"
@@ -160,7 +156,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"💵 현재가 {px:,.1f}\n"
         f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
-        f"🎯 익절(시장가): 대각선 추세선 {exit_txt}\n"
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
