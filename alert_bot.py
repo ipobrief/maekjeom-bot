@@ -130,13 +130,12 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
-    # 강도 배지: 나머지 6/6 + 장기RCI(26) 정렬 = 베스트 / 6/6만 = 강신호
-    rem_n = sum(rem.values())
-    green_ok = (e["rci_long"] > 0) if long_ else (e["rci_long"] < 0)
-    if rem_n == 6 and green_ok:
-        badge = "⭐ <b>베스트 타점</b> — 나머지 6/6 + 장기RCI(26)까지 정렬\n"
-    elif rem_n == 6:
-        badge = "🔥 <b>강신호</b> — 나머지 6/6 (장기RCI 26은 대기)\n"
+    # 강도 배지: 나머지 7/7(그린26 포함)=베스트 / 6/7=강신호
+    rem_n = sum(rem.values()); n_tot = len(rem)
+    if rem_n == n_tot:
+        badge = f"⭐ <b>베스트 타점</b> — 전조건 충족(나머지 {rem_n}/{n_tot}, 그린26 포함)\n"
+    elif rem_n == n_tot - 1:
+        badge = f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     else:
         badge = ""
     # 익절 참고선(대각선): 롱=상승대각선(sup) 하향이탈 / 숏=하락대각선(res) 상향돌파
@@ -164,7 +163,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"🎯 익절(시장가): 대각선 추세선 {exit_txt}\n"
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
-        f"<b>나머지 {sum(rem.values())}/6 (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
+        f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
         f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 20일선 {e['ma20']:,.0f} / 스토%K {e['k']:.0f} / RCI단 {e['rci_s']:.0f}(장{e['rci_long']:.0f})\n"
         f"<i>판독이지 매매권유 아님. 진입=지정가/익절=시장가. 최종 판단은 본인.</i>"
     )

@@ -106,12 +106,14 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR2 = tenkan > kijun
     LR3 = d["close"] > res_line
     LR5 = stoch_long                                   # 스토 50위 + GC + 상향
+    LR7 = rci_long > 0                                 # RCI 그린(장기26) 0선 위 (7번째 나머지)
     SM1 = d["close"] < senkou1
     SM2 = d["close"] < ma20
     SR1 = chikou_below
     SR2 = tenkan < kijun
     SR3 = d["close"] < sup_line
     SR5 = stoch_short                                  # 스토 50아래 + DC + 하향
+    SR7 = rci_long < 0                                 # RCI 그린(장기26) 0선 아래
 
     # ── 잠정(provisional): MACD·스토·RCI 타점 규칙(위치+방향)
     LR4_p = macd_long
@@ -119,10 +121,10 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     SR4_p = macd_short
     SR6_p = rci_short_ok
     long_rem_p  = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
-                   + LR4_p.astype(int) + LR5.astype(int) + LR6_p.astype(int))
+                   + LR4_p.astype(int) + LR5.astype(int) + LR6_p.astype(int) + LR7.astype(int))
     long_all_p  = (LM1 & LM2 & (long_rem_p  >= rem_req)).fillna(False)
     short_rem_p = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
-                   + SR4_p.astype(int) + SR5.astype(int) + SR6_p.astype(int))
+                   + SR4_p.astype(int) + SR5.astype(int) + SR6_p.astype(int) + SR7.astype(int))
     short_all_p = (SM1 & SM2 & (short_rem_p >= rem_req)).fillna(False)
 
     # ── 확정(confirmed): 잠정과 동일 조건(MACD·스토·RCI 모두 위치+방향)
@@ -131,11 +133,11 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     SR4 = macd_short
     SR6 = rci_short_ok
     long_rem  = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
-                 + LR4.astype(int) + LR5.astype(int) + LR6.astype(int))
+                 + LR4.astype(int) + LR5.astype(int) + LR6.astype(int) + LR7.astype(int))
     long_all  = (LM1 & LM2 & (long_rem  >= rem_req)).fillna(False)
     long_entry = long_all & ~long_all.shift(1, fill_value=False)
     short_rem = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
-                 + SR4.astype(int) + SR5.astype(int) + SR6.astype(int))
+                 + SR4.astype(int) + SR5.astype(int) + SR6.astype(int) + SR7.astype(int))
     short_all = (SM1 & SM2 & (short_rem >= rem_req)).fillna(False)
     short_entry = short_all & ~short_all.shift(1, fill_value=False)
 
@@ -167,9 +169,9 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
     for name, ser in [("LM1", LM1), ("LM2", LM2), ("LR1", LR1), ("LR2", LR2),
-                      ("LR3", LR3), ("LR4", LR4), ("LR5", LR5), ("LR6", LR6),
+                      ("LR3", LR3), ("LR4", LR4), ("LR5", LR5), ("LR6", LR6), ("LR7", LR7),
                       ("SM1", SM1), ("SM2", SM2), ("SR1", SR1), ("SR2", SR2),
-                      ("SR3", SR3), ("SR4", SR4), ("SR5", SR5), ("SR6", SR6)]:
+                      ("SR3", SR3), ("SR4", SR4), ("SR5", SR5), ("SR6", SR6), ("SR7", SR7)]:
         out[name] = ser.fillna(False)
     return out
 
@@ -193,6 +195,7 @@ def explain(sig_row, cfg) -> dict:
         "MACD 골든크로스(방향)": bool(r["LR4"]),
         "스토 50돌파(50~80·진입)": bool(r["LR5"]),
         "RCI 단>중GC & 0선위": bool(r["LR6"]),
+        "RCI 그린(26) 0선위": bool(r["LR7"]),
     }
     must_short = {
         "[필수] 종가 < 선행스팬1": bool(r["SM1"]),
@@ -205,6 +208,7 @@ def explain(sig_row, cfg) -> dict:
         "MACD 데드크로스(방향)": bool(r["SR4"]),
         "스토 50이탈(20~50·진입)": bool(r["SR5"]),
         "RCI 단<중DC & 0선아래": bool(r["SR6"]),
+        "RCI 그린(26) 0선아래": bool(r["SR7"]),
     }
     checks_long = {**must_long, **rem_long}
     checks_short = {**must_short, **rem_short}
