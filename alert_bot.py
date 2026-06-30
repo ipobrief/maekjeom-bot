@@ -159,7 +159,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
-        f"<i>판독이지 매매권유 아님. 진입=지정가/익절=시장가. 최종 판단은 본인.</i>"
+        f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
 
 
