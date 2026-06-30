@@ -147,7 +147,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
-        f"ℹ️ 선행스팬1 {e['senkou1']:,.0f} / 20일선 {e['ma20']:,.0f} / 스토%K {e['k']:.0f} / RCI단 {e['rci_s']:.0f}(장{e['rci_long']:.0f})\n"
         f"<i>판독이지 매매권유 아님. 1분봉 단기신호. 최종 판단은 본인.</i>"
     )
 
