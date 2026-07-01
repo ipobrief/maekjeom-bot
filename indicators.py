@@ -115,15 +115,18 @@ def recent_level(pivot: pd.Series, right: int) -> pd.Series:
     return pivot.shift(right).ffill()
 
 
-def trendline_series(df: pd.DataFrame, kind: str = "res", left: int = 5, right: int = 5) -> pd.Series:
+def trendline_series(df: pd.DataFrame, kind: str = "res", left: int = 5, right: int = 5,
+                     with_slope: bool = False):
     """봉마다 '직전 주요 스윙 2점'을 이은 대각선 추세선 값을 반환(미래참조 없음).
     kind='res' 고점 2개(하락추세선) / 'sup' 저점 2개(상승추세선).
-    피벗은 right봉 뒤에 확정되므로 그 시점 이후부터만 사용."""
+    피벗은 right봉 뒤에 확정되므로 그 시점 이후부터만 사용.
+    with_slope=True면 (선, 봉당 기울기) 튜플 반환 — 상승/하락 방향 검증용."""
     piv = swing_high(df, left, right) if kind == "res" else swing_low(df, left, right)
     vals = piv.values
     positions = np.where(~np.isnan(vals))[0]      # 피벗이 위치한 봉
     confirmed = positions + right                  # 그 피벗이 '확정'되는 봉
     line = np.full(len(df), np.nan)
+    slp = np.full(len(df), np.nan)
     known = []
     ci = 0
     for t in range(len(df)):
@@ -135,4 +138,8 @@ def trendline_series(df: pd.DataFrame, kind: str = "res", left: int = 5, right: 
             if i2 != i1:
                 slope = (y2 - y1) / (i2 - i1)
                 line[t] = y2 + slope * (t - i2)
-    return pd.Series(line, index=df.index)
+                slp[t] = slope
+    ls = pd.Series(line, index=df.index)
+    if with_slope:
+        return ls, pd.Series(slp, index=df.index)
+    return ls

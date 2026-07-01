@@ -80,8 +80,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     senkou1 = (tenkan + kijun) / 2
     ma20 = ind.sma(d["close"], 20)
     tp = cfg.get("trend_pivot", 5)
-    res_line = ind.trendline_series(d, "res", tp, tp)   # 하락 대각선(고점2점)
-    sup_line = ind.trendline_series(d, "sup", tp, tp)   # 상승 대각선(저점2점)
+    res_line, res_slope = ind.trendline_series(d, "res", tp, tp, with_slope=True)  # 하락 대각선(고점2점)
+    sup_line, sup_slope = ind.trendline_series(d, "sup", tp, tp, with_slope=True)  # 상승 대각선(저점2점)
     cs = cfg["chikou_shift"]
     chikou_above = d["close"] > d["close"].shift(cs)    # 후행스팬 > 26봉전 봉
     chikou_below = d["close"] < d["close"].shift(cs)
@@ -104,14 +104,14 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LM2 = d["close"] > ma20                            # [필수] 20일선 위
     LR1 = chikou_above
     LR2 = tenkan > kijun
-    LR3 = d["close"] > res_line
+    LR3 = (d["close"] > res_line) & (res_slope < 0)    # 하락저항선(고점↓)만 유효, 그걸 상향돌파
     LR5 = stoch_long                                   # 스토 50위 + GC + 상향
     LR7 = rci_long > 0                                 # RCI 그린(장기26) 0선 위 (7번째 나머지)
     SM1 = d["close"] < senkou1
     SM2 = d["close"] < ma20
     SR1 = chikou_below
     SR2 = tenkan < kijun
-    SR3 = d["close"] < sup_line
+    SR3 = (d["close"] < sup_line) & (sup_slope > 0)    # 상승지지선(저점↑)만 유효, 그걸 하향이탈
     SR5 = stoch_short                                  # 스토 50아래 + DC + 하향
     SR7 = rci_long < 0                                 # RCI 그린(장기26) 0선 아래
 

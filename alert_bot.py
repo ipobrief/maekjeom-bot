@@ -50,7 +50,7 @@ CFG = {
     "rci_long": 26,
     "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3,    # 손절용 직전저점/고점
-    "trend_pivot": 3,                # 대각선용 스윙 강도(3=20일선에 가장 근접, 명백한 돌파 포착)
+    "trend_pivot": 8,                # 대각선용 스윙 강도(8=주요 스윙, 큰 그림 추세선)
     "rem_req": 3,                    # 필수2(선행스팬1·20일선) 외 나머지6 중 3개
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
