@@ -10,6 +10,8 @@ CFG = {
     "rci_long": 26,                # RCI long 기간 (9/13/26 중 long)
     "chikou_shift": 26,            # 후행스팬 시프트
     "pivot_left": 3, "pivot_right": 3,   # 직전저점/고점(손절) 피벗
+    "trend_pivot": 8,              # 대각선 주요 스윙(라이브 봇과 동일)
+    "rem_req": 4,                  # 필수2 외 나머지7 중 4개(라이브 봇과 동일)
     "stop_mode": "swing",          # "swing"(직전저점/고점) 또는 "atr"
     "atr_stop_mult": 2.0,          # stop_mode=atr 일 때
     "risk_per_trade": 0.01,        # 자본 1% 리스크
@@ -27,7 +29,18 @@ def run(sig: pd.DataFrame, cfg: dict):
     pos = None
     eq_curve = []
 
+    peak_eq = equity
+    halted = False
     for t, row in sig.iterrows():
+        peak_eq = max(peak_eq, equity)
+        dd = (peak_eq - equity) / peak_eq if peak_eq > 0 else 0
+        # 최대낙폭 차단기: DD가 한도 초과 시 신규진입 중단, 절반 회복 시 재개
+        mdl = cfg.get("max_dd_stop")
+        if mdl:
+            if dd >= mdl:
+                halted = True
+            elif dd <= mdl * 0.5:
+                halted = False
         # 1) 포지션 관리: 손절(봉 고저, 시장가) 우선 → 신호청산(종가, 시장가)
         if pos:
             exit_price, reason = None, None
@@ -47,8 +60,8 @@ def run(sig: pd.DataFrame, cfg: dict):
                                "pnl": pnl, "exit_time": t, "equity": equity})
                 pos = None
 
-        # 2) 신규 진입 (포지션 없을 때만) — 지정가(메이커), 슬리피지≈0
-        if pos is None and (row["long"] or row["short"]) and not np.isnan(row["atr"]):
+        # 2) 신규 진입 (포지션 없을 때만, 차단기 작동중 아닐 때) — 지정가(메이커)
+        if pos is None and not halted and (row["long"] or row["short"]) and not np.isnan(row["atr"]):
             direction = 1 if row["long"] else -1
             entry = row["close"] * (1 + cfg["entry_slip"] * direction)
             # 손절 = 직전저점(롱)/직전고점(숏), 없거나 역방향이면 ATR 대체

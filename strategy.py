@@ -94,10 +94,11 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     # 스토캐스틱 = 진입시점: 50선 돌파(50~80, %K>%D, 상향). 과열80↑·침체20↓ 제외.
     stoch_long  = (k > 50) & (k < 80) & (k > dd) & (k > k.shift(1))
     stoch_short = (k < 50) & (k > 20) & (k < dd) & (k < k.shift(1))
-    # RCI(보조): 단기선(9·파랑)이 중기선(13·오렌지) 골든크로스 + 단기선 0선 위 → 롱.
+    # RCI(보조): 단기선(9·파랑)이 중기선(13·오렌지) 골든크로스 + 단기선 0선 위 + 상향 → 롱.
+    # 각도 검증: 0선 위라도 단기선이 꺾여 내려오는 중이면 무효(오실레이터 방향 원칙).
     # 장기선(26·초록) 0선 돌파는 '롱 유지'일 뿐 진입엔 늦어서 안 씀.
-    rci_long_ok  = (rci_s > rci_m) & (rci_s > 0)
-    rci_short_ok = (rci_s < rci_m) & (rci_s < 0)
+    rci_long_ok  = (rci_s > rci_m) & (rci_s > 0) & (rci_s > rci_s.shift(1))
+    rci_short_ok = (rci_s < rci_m) & (rci_s < 0) & (rci_s < rci_s.shift(1))
 
     # ── 공통 조건
     LM1 = d["close"] > senkou1                        # [필수] 선행스팬1 위
@@ -198,7 +199,7 @@ def explain(sig_row, cfg) -> dict:
         "하락 대각선 상향돌파": bool(r["LR3"]),
         "MACD 골든크로스(방향)": bool(r["LR4"]),
         f"스토 50돌파({zl})": bool(r["LR5"]),
-        "RCI 단>중GC & 0선위": bool(r["LR6"]),
+        "RCI 단>중GC & 0선위+상향": bool(r["LR6"]),
         "RCI 그린(26) 0선위": bool(r["LR7"]),
     }
     must_short = {
@@ -211,7 +212,7 @@ def explain(sig_row, cfg) -> dict:
         "상승 대각선 하향이탈": bool(r["SR3"]),
         "MACD 데드크로스(방향)": bool(r["SR4"]),
         f"스토 50이탈({zs})": bool(r["SR5"]),
-        "RCI 단<중DC & 0선아래": bool(r["SR6"]),
+        "RCI 단<중DC & 0선아래+하향": bool(r["SR6"]),
         "RCI 그린(26) 0선아래": bool(r["SR7"]),
     }
     checks_long = {**must_long, **rem_long}

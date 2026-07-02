@@ -39,7 +39,7 @@ CFG = {
     "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3,
     "trend_pivot": 8,    # 대각선 스윙 강도(8=주요 스윙, 큰 그림 추세선)
-    "rem_req": 3,
+    "rem_req": 4,    # 나머지7 중 4개
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,
     "trend_lookback": 100,
@@ -49,6 +49,7 @@ WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
 HTF_REFRESH_SEC = 300        # 상위TF 갱신 주기
 RECOMPUTE_MIN_SEC = 60       # 잠정 재계산 최소 간격 (중복 방지)
 PROV_MIN_MINS_LEFT = 5       # 잔여시간 이 미만이면 잠정신호 억제 (분)
+SAME_DIR_RESET_BARS = 24     # 동일방향 억제 유효기간(봉). 지나면 재허용 (15m봉=6시간)
 
 
 # ── 유틸 ───────────────────────────────────────────────────────────────────────
@@ -165,7 +166,14 @@ class LiveState:
         self.alerted_bar = None
         self.alerted_dirs = set()
         self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
+        self.last_dir_when = None     # 직전 발송 봉 open_time — 억제 유효기간 판정용
         self.last_recompute = 0.0
+
+    def same_dir_blocked(self, d, when):
+        """직전 발송과 같은 방향이면 억제. 단 SAME_DIR_RESET_BARS 지나면 재허용."""
+        if d != self.last_dir or self.last_dir_when is None:
+            return False
+        return (when - self.last_dir_when) < pd.Timedelta(TF) * SAME_DIR_RESET_BARS
 
     def load_base(self):
         self.df1m = data.get_history(SYMBOL, TF, bars=600)
@@ -205,12 +213,13 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
         d = e["direction"]
-        # 직전 발송 방향과 같으면 연속 신호 → 억제(반대 신호가 끼면 다시 허용)
-        if d and d != st.last_dir and getattr(handle_tick, "send_confirm", True):
+        # 직전 발송 방향과 같으면 연속 신호 → 억제(반대 신호 또는 24봉 경과 시 재허용)
+        if d and not st.same_dir_blocked(d, when) and getattr(handle_tick, "send_confirm", True):
             emit(fmt_signal(e, when, provisional=False))
             st.last_dir = d
+            st.last_dir_when = when
         else:
-            why = "방향전환 없음" if d and d == st.last_dir else (d or "신호없음")
+            why = "방향전환 없음(억제중)" if d and st.same_dir_blocked(d, when) else (d or "신호없음")
             print(f"[ws-1m] {kst(when):%m-%d %H:%M:%S} 마감: {why}")
         st.alerted_bar = None
         st.alerted_dirs = set()
@@ -226,8 +235,8 @@ def handle_tick(st, k):
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
     # 억제: ① 같은 봉·같은 방향 중복(임계선 깜빡임) ② 직전 발송과 같은 방향 연속(봉 넘어 노이즈).
-    #       중간에 반대 신호가 끼면 last_dir이 바뀌어 다음 동일방향은 다시 허용.
-    if d and d not in st.alerted_dirs and d != st.last_dir:
+    #       반대 신호가 끼거나 24봉 지나면 재허용.
+    if d and d not in st.alerted_dirs and not st.same_dir_blocked(d, when):
         must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if not must_ok:
             st.alerted_dirs.add(d)
@@ -240,6 +249,7 @@ def handle_tick(st, k):
         emit(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
         st.alerted_dirs.add(d)
         st.last_dir = d
+        st.last_dir_when = when
 
 
 async def run(send_confirm=True):
