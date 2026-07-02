@@ -62,19 +62,37 @@ HTF = ("2h", "4h", "1d")
 HTF_LABELS = ("2시간", "4시간", "일봉")
 
 
+def tg_html(text):
+    """<b>/<i> 태그는 살리고 나머지 <,>,& 는 이스케이프 (텔레그램 HTML parse_mode용).
+    카드 본문에 '종가 > 선행스팬1' 같은 부등호가 있어 그대로 보내면 파싱이 깨짐."""
+    t = (text.replace("<b>", "\x01").replace("</b>", "\x02")
+             .replace("<i>", "\x03").replace("</i>", "\x04"))
+    t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (t.replace("\x01", "<b>").replace("\x02", "</b>")
+             .replace("\x03", "<i>").replace("\x04", "</i>"))
+
+
 def tg_send(text):
     token = os.environ.get("TELEGRAM_TOKEN")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
         print("⚠️ 텔레그램 미설정: TELEGRAM_TOKEN / TELEGRAM_CHAT_ID 환경변수가 비어 있습니다 (콘솔만 출력).")
         return False
-    clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
-        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                          data={"chat_id": chat, "text": clean}, timeout=10)
+        r = requests.post(url, data={"chat_id": chat, "text": tg_html(text),
+                                     "parse_mode": "HTML"}, timeout=10)
         j = r.json()
         if j.get("ok"):
             print("✅ 텔레그램 전송 성공")
+            return True
+        # HTML 파싱 실패 시 태그 제거 평문으로 폴백(알림 유실 방지)
+        print(f"⚠️ HTML 전송 실패({j.get('description')}) → 평문 재시도")
+        clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+        r = requests.post(url, data={"chat_id": chat, "text": clean}, timeout=10)
+        j = r.json()
+        if j.get("ok"):
+            print("✅ 텔레그램 전송 성공(평문)")
             return True
         print(f"❌ 텔레그램 전송 실패: {j.get('description')}")
         return False
@@ -159,7 +177,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
-        f"📐 <b>진입 전 가로 매물대·채널 반드시 작도 후 최종 결정!</b>\n"
+        f"📐 진입 전 <b>가로 매물대·채널</b> 반드시 작도 후 최종 결정!\n"
         f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
 
