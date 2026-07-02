@@ -159,6 +159,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"━━━━━━━━━━━━━\n"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
+        f"📐 <b>진입 전 가로 매물대·채널 반드시 작도 후 최종 결정!</b>\n"
         f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
 
