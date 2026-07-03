@@ -168,10 +168,12 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     else:
         head = (f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
                 f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n")
+    fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 피보나치로 타점 계산 후 신중 진입!</b>\n"
     return (
         badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
+        f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
         f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
