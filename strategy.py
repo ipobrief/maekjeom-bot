@@ -187,8 +187,11 @@ def explain(sig_row, cfg) -> dict:
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
     # 스토 %K 현재 구간 표시 (롱: 진입50~80/과열80↑ / 숏: 진입20~50/침체20↓)
     kv = r["k"]
-    zl = f"🥵과열 {kv:.0f}" if kv >= 80 else f"{kv:.0f}"
-    zs = f"🥶침체 {kv:.0f}" if kv <= 20 else f"{kv:.0f}"
+    # 값에 맞춰 문구 자체가 바뀜(50돌파인데 45가 나오는 모순 방지)
+    stl = (f"스토 50돌파(🥵과열 {kv:.0f})" if kv >= 80 else
+           f"스토 50돌파({kv:.0f})" if kv > 50 else f"스토 50 아래({kv:.0f})")
+    sts = (f"스토 50이탈(🥶침체 {kv:.0f})" if kv <= 20 else
+           f"스토 50이탈({kv:.0f})" if kv < 50 else f"스토 50 위({kv:.0f})")
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
@@ -198,7 +201,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 > 기준선": bool(r["LR2"]),
         "하락 대각선 상향돌파": bool(r["LR3"]),
         "MACD 골든크로스(방향)": bool(r["LR4"]),
-        f"스토 50돌파({zl})": bool(r["LR5"]),
+        stl: bool(r["LR5"]),
         "RCI 단>중GC & 0선위+상향": bool(r["LR6"]),
         "RCI 그린(26) 0선위": bool(r["LR7"]),
     }
@@ -211,7 +214,7 @@ def explain(sig_row, cfg) -> dict:
         "전환선 < 기준선": bool(r["SR2"]),
         "상승 대각선 하향이탈": bool(r["SR3"]),
         "MACD 데드크로스(방향)": bool(r["SR4"]),
-        f"스토 50이탈({zs})": bool(r["SR5"]),
+        sts: bool(r["SR5"]),
         "RCI 단<중DC & 0선아래+하향": bool(r["SR6"]),
         "RCI 그린(26) 0선아래": bool(r["SR7"]),
     }
