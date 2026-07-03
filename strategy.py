@@ -165,6 +165,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["macd_line"] = macd_line
     out["rci_long"] = rci_long
     out["rci_s"] = rci_s
+    out["rci_m"] = rci_m                                     # RCI 중기13 (라벨용)
+    out["rci_s_up"] = (rci_s > rci_s.shift(1)).fillna(False) # RCI 단기9 상향 여부
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
@@ -196,6 +198,14 @@ def explain(sig_row, cfg) -> dict:
            f"스토 50돌파({kv:.0f}·{cs})" if kv > 50 else f"스토 50 아래({kv:.0f}·{cs})")
     sts = (f"스토 50이탈(🥶침체 {kv:.0f}·{cs})" if kv <= 20 else
            f"스토 50이탈({kv:.0f}·{cs})" if kv < 50 else f"스토 50 위({kv:.0f}·{cs})")
+    # RCI 라벨: 단기9 vs 중기13 실제 크로스 상태 + 방향 + 0선 위치(값)
+    r9v = r.get("rci_s", float("nan")); r13v = r.get("rci_m", float("nan"))
+    gv = r["rci_long"]
+    rrel = ("단>중(GC" if r9v > r13v else "단<중(DC") + ("↑)" if bool(r.get("rci_s_up", False)) else "↓)")
+    rl6 = f"RCI {rrel} & 0선 {'돌파' if r9v > 0 else '아래'}({r9v:.0f})"
+    rs6 = f"RCI {rrel} & 0선 {'이탈' if r9v < 0 else '위'}({r9v:.0f})"
+    rl7 = f"RCI 그린 0선 {'돌파' if gv > 0 else '아래'}({gv:.0f})"
+    rs7 = f"RCI 그린 0선 {'이탈' if gv < 0 else '위'}({gv:.0f})"
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
@@ -206,8 +216,8 @@ def explain(sig_row, cfg) -> dict:
         "하락 대각선 상향돌파": bool(r["LR3"]),
         "MACD 골든크로스(방향)": bool(r["LR4"]),
         stl: bool(r["LR5"]),
-        "RCI 단>중GC & 0선위+상향": bool(r["LR6"]),
-        "RCI 그린(26) 0선위": bool(r["LR7"]),
+        rl6: bool(r["LR6"]),
+        rl7: bool(r["LR7"]),
     }
     must_short = {
         "[필수] 종가 < 선행스팬1": bool(r["SM1"]),
@@ -219,8 +229,8 @@ def explain(sig_row, cfg) -> dict:
         "상승 대각선 하향이탈": bool(r["SR3"]),
         "MACD 데드크로스(방향)": bool(r["SR4"]),
         sts: bool(r["SR5"]),
-        "RCI 단<중DC & 0선아래+하향": bool(r["SR6"]),
-        "RCI 그린(26) 0선아래": bool(r["SR7"]),
+        rs6: bool(r["SR6"]),
+        rs7: bool(r["SR7"]),
     }
     checks_long = {**must_long, **rem_long}
     checks_short = {**must_short, **rem_short}
