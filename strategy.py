@@ -160,6 +160,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["sup_line"] = sup_line
     out["ma20"] = ma20
     out["k"] = k
+    out["kd"] = dd                                   # 스토 %D (라벨 GC/DC 표시용)
+    out["k_up"] = (k > k.shift(1)).fillna(False)     # 스토 %K 상향 여부
     out["macd_line"] = macd_line
     out["rci_long"] = rci_long
     out["rci_s"] = rci_s
@@ -187,11 +189,13 @@ def explain(sig_row, cfg) -> dict:
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
     # 스토 %K 현재 구간 표시 (롱: 진입50~80/과열80↑ / 숏: 진입20~50/침체20↓)
     kv = r["k"]
+    # 크로스 상태(GC=%K>%D / DC) + 방향(↑상향/↓꺾임) 표시
+    cs = ("GC" if kv > r.get("kd", float("nan")) else "DC") + ("↑" if bool(r.get("k_up", False)) else "↓")
     # 값에 맞춰 문구 자체가 바뀜(50돌파인데 45가 나오는 모순 방지)
-    stl = (f"스토 50돌파(🥵과열 {kv:.0f})" if kv >= 80 else
-           f"스토 50돌파({kv:.0f})" if kv > 50 else f"스토 50 아래({kv:.0f})")
-    sts = (f"스토 50이탈(🥶침체 {kv:.0f})" if kv <= 20 else
-           f"스토 50이탈({kv:.0f})" if kv < 50 else f"스토 50 위({kv:.0f})")
+    stl = (f"스토 50돌파(🥵과열 {kv:.0f}·{cs})" if kv >= 80 else
+           f"스토 50돌파({kv:.0f}·{cs})" if kv > 50 else f"스토 50 아래({kv:.0f}·{cs})")
+    sts = (f"스토 50이탈(🥶침체 {kv:.0f}·{cs})" if kv <= 20 else
+           f"스토 50이탈({kv:.0f}·{cs})" if kv < 50 else f"스토 50 위({kv:.0f}·{cs})")
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
