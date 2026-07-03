@@ -187,8 +187,8 @@ def explain(sig_row, cfg) -> dict:
                 "강한 하락" if bias <= -2 else "약한 하락" if bias < 0 else "중립")
     # 스토 %K 현재 구간 표시 (롱: 진입50~80/과열80↑ / 숏: 진입20~50/침체20↓)
     kv = r["k"]
-    zl = f"🥵과열 {kv:.0f}" if kv >= 80 else (f"진입 {kv:.0f}" if kv > 50 else f"50미만 {kv:.0f}")
-    zs = f"🥶침체 {kv:.0f}" if kv <= 20 else (f"진입 {kv:.0f}" if kv < 50 else f"50초과 {kv:.0f}")
+    zl = f"🥵과열 {kv:.0f}" if kv >= 80 else f"{kv:.0f}"
+    zs = f"🥶침체 {kv:.0f}" if kv <= 20 else f"{kv:.0f}"
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
