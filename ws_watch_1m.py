@@ -129,14 +129,16 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
-    # 강도 배지: 나머지 7/7(그린26 포함)=베스트 / 6/7=강신호
+    # 배지: 🎯 막돌파(타이밍) / ⭐ 전조건 정렬 / 🔥 강신호 — 🎯는 ⭐·🔥와 중첩 표시 가능
+    badge = ""
+    fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
+    if fresh >= 3:
+        badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/4, 최근 3봉)\n"
     rem_n = sum(rem.values()); n_tot = len(rem)
     if rem_n == n_tot:
-        badge = f"⭐ <b>베스트 타점</b> — 전조건 충족(나머지 {rem_n}/{n_tot}, 그린26 포함)\n"
+        badge += f"⭐ <b>전조건 정렬</b>(나머지 {rem_n}/{n_tot}, 그린26 포함) — 추세 진행 중, 추격 주의\n"
     elif rem_n == n_tot - 1:
-        badge = f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
-    else:
-        badge = ""
+        badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"

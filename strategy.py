@@ -142,6 +142,20 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     short_all = (SM1 & SM2 & (short_rem >= rem_req)).fillna(False)
     short_entry = short_all & ~short_all.shift(1, fill_value=False)
 
+    # ── 막돌파 신선도: 핵심 트리거 4개가 최근 W봉 이내에 '막 돌파'했는지 개수(0~4)
+    # {MACD 0선, 스토 50선, RCI단9 0선, RCI그린26 0선} — 동시 막돌파 = 맥점 타이밍
+    W = cfg.get("fresh_bars", 3)
+    def _fresh(ev):
+        return ev.astype(int).rolling(W, min_periods=1).max()
+    fresh_long = (_fresh((macd_line > 0) & (macd_line.shift(1) <= 0))
+                  + _fresh((k > 50) & (k.shift(1) <= 50))
+                  + _fresh((rci_s > 0) & (rci_s.shift(1) <= 0))
+                  + _fresh((rci_long > 0) & (rci_long.shift(1) <= 0)))
+    fresh_short = (_fresh((macd_line < 0) & (macd_line.shift(1) >= 0))
+                   + _fresh((k < 50) & (k.shift(1) >= 50))
+                   + _fresh((rci_s < 0) & (rci_s.shift(1) >= 0))
+                   + _fresh((rci_long < 0) & (rci_long.shift(1) >= 0)))
+
     # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
     long_exit = short_all
     short_exit = long_all
@@ -169,6 +183,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["rci_s"] = rci_s
     out["rci_m"] = rci_m                                     # RCI 중기13 (라벨용)
     out["rci_s_up"] = (rci_s > rci_s.shift(1)).fillna(False) # RCI 단기9 상향 여부
+    out["fresh_long"], out["fresh_short"] = fresh_long, fresh_short
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
@@ -259,6 +274,8 @@ def explain(sig_row, cfg) -> dict:
         "tf_4h": tf_txt(r.get("bias_4h", 0)),
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
+        "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
+        "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
         "swing_high": r.get("swing_high", float("nan")),
