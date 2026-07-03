@@ -163,6 +163,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["kd"] = dd                                   # 스토 %D (라벨 GC/DC 표시용)
     out["k_up"] = (k > k.shift(1)).fillna(False)     # 스토 %K 상향 여부
     out["macd_line"] = macd_line
+    out["macd_sig"] = macd_sig                                     # 시그널선 (라벨 GC/DC용)
+    out["macd_up"] = (macd_line > macd_line.shift(1)).fillna(False)  # MACD선 상향 여부
     out["rci_long"] = rci_long
     out["rci_s"] = rci_s
     out["rci_m"] = rci_m                                     # RCI 중기13 (라벨용)
@@ -206,6 +208,11 @@ def explain(sig_row, cfg) -> dict:
     rs6 = f"RCI {rrel} & 0선 {'이탈' if r9v < 0 else '위'}({r9v:.0f})"
     rl7 = f"RCI 그린 0선 {'돌파' if gv > 0 else '아래'}({gv:.0f})"
     rs7 = f"RCI 그린 0선 {'이탈' if gv < 0 else '위'}({gv:.0f})"
+    # MACD 라벨: 크로스(GC/DC)+방향(↑/↓)+0선 위치(값). 조건 판정은 GC/DC만(0선은 정보 표시)
+    mlv = r["macd_line"]; msv = r.get("macd_sig", float("nan"))
+    mcs = ("GC" if mlv > msv else "DC") + ("↑" if bool(r.get("macd_up", False)) else "↓")
+    ml4 = f"MACD {mcs} & 0선 {'돌파' if mlv > 0 else '아래'}({mlv:.0f})"
+    ms4 = f"MACD {mcs} & 0선 {'이탈' if mlv < 0 else '위'}({mlv:.0f})"
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
@@ -214,7 +221,7 @@ def explain(sig_row, cfg) -> dict:
         "후행스팬 > 26봉전": bool(r["LR1"]),
         "전환선 > 기준선": bool(r["LR2"]),
         "하락 대각선 상향돌파": bool(r["LR3"]),
-        "MACD 골든크로스(방향)": bool(r["LR4"]),
+        ml4: bool(r["LR4"]),
         stl: bool(r["LR5"]),
         rl6: bool(r["LR6"]),
         rl7: bool(r["LR7"]),
@@ -227,7 +234,7 @@ def explain(sig_row, cfg) -> dict:
         "후행스팬 < 26봉전": bool(r["SR1"]),
         "전환선 < 기준선": bool(r["SR2"]),
         "상승 대각선 하향이탈": bool(r["SR3"]),
-        "MACD 데드크로스(방향)": bool(r["SR4"]),
+        ms4: bool(r["SR4"]),
         sts: bool(r["SR5"]),
         rs6: bool(r["SR6"]),
         rs7: bool(r["SR7"]),
