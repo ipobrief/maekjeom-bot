@@ -2,7 +2,7 @@
 """맥점 웹소켓 실시간 감시 — 일봉(1d) 전용.
 
 ws_watch.py(1h)·ws_watch_1m.py(15m)와 동일 구조. 신호는 드물지만 큰 그림 맥점 포착용.
-알림 채널: 1시간봉 채널 재사용 (TELEGRAM_TOKEN / TELEGRAM_CHAT_ID) — 카드에 (1d) 표기로 구분.
+알림 채널: 일봉 전용 (TELEGRAM_TOKEN_1D / TELEGRAM_CHAT_ID_1D).
 일봉 마감 = 바이낸스 UTC 00:00 = 한국시간 09:00.
 
 실행:
@@ -54,10 +54,10 @@ def kst(ts):
 
 
 def tg_send(text):
-    token = os.environ.get("TELEGRAM_TOKEN")     # 1h 채널 재사용
-    chat = os.environ.get("TELEGRAM_CHAT_ID")
+    token = os.environ.get("TELEGRAM_TOKEN_1D")  # 일봉 전용 채널
+    chat = os.environ.get("TELEGRAM_CHAT_ID_1D")
     if not token or not chat:
-        print("⚠️ 일봉봇 텔레그램 미설정: TELEGRAM_TOKEN / TELEGRAM_CHAT_ID 없음 (콘솔만 출력).")
+        print("⚠️ 일봉봇 텔레그램 미설정: TELEGRAM_TOKEN_1D / TELEGRAM_CHAT_ID_1D 없음 (콘솔만 출력).")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
@@ -250,7 +250,7 @@ async def run(send_confirm=True):
     st.load_base()
     print(f"📡 맥점 웹소켓 감시 시작 — {SYMBOL} {TF} "
           f"({'2단계: 예비+확정' if send_confirm else '예비만'})"
-          + ("" if os.environ.get("TELEGRAM_TOKEN") else " (콘솔 모드)"))
+          + ("" if os.environ.get("TELEGRAM_TOKEN_1D") else " (콘솔 모드)"))
     while True:
         try:
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=20) as ws:
