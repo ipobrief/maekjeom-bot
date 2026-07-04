@@ -8,6 +8,7 @@
 ## 봇 구성
 - ws_watch.py — 1시간봉 봇 (TELEGRAM_TOKEN / TELEGRAM_CHAT_ID)
 - ws_watch_1m.py — 15분봉 봇 (TELEGRAM_TOKEN_1M / TELEGRAM_CHAT_ID_1M)
+- ws_watch_1d.py — 일봉 봇 (1h 채널 재사용: TELEGRAM_TOKEN / TELEGRAM_CHAT_ID, 카드 (1d) 표기)
 - 경로: ~/maekjeom-bot
 - 파이썬은 `python3` (이 서버엔 `python` 명령 없음 — nohup python 하면 Exit 127)
 
@@ -15,6 +16,7 @@
 두 봇은 systemd 서비스로 등록되어 있고 자동재시작(Restart=always)된다.
 - maekjeom-bot.service       — 1시간봉 (1h)
 - maekjeom-bot-15m.service   — 15분봉 (15m)
+- maekjeom-bot-1d.service    — 일봉 (1d)
 
 수동 `nohup python3 ...` 로 띄우면 systemd 봇과 중복 실행되어 텔레그램 알림이
 겹친다. 반드시 systemctl 로 관리할 것.
@@ -26,17 +28,17 @@
 ## 업데이트 & 재시작 절차 (서버에서)
 cd ~/maekjeom-bot
 git pull origin main
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d
 
 ## 봇 상태 확인 (서버에서)
-systemctl status maekjeom-bot maekjeom-bot-15m --no-pager
-ps aux | grep ws_watch          # 정상이면 python3 -u ws_watch.py / ws_watch_1m.py 딱 2개
+systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d --no-pager
+ps aux | grep ws_watch          # 정상이면 ws_watch.py / ws_watch_1m.py / ws_watch_1d.py 딱 3개
 sudo journalctl -u maekjeom-bot -f
 sudo journalctl -u maekjeom-bot-15m -f
 
 ## 중복 프로세스 정리 (수동 nohup 등으로 중복 떴을 때)
 pkill -9 -f ws_watch
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d
 
 ## 코드 변경 → 배포 흐름
 1. 코드 수정 후 GitHub main 에 push
