@@ -51,7 +51,7 @@ CFG = {
     "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3,    # 손절용 직전저점/고점
     "trend_pivot": 8,                # 대각선용 스윙 강도(8=주요 스윙, 큰 그림 추세선)
-    "rem_req": 4,                    # 필수2(선행스팬1·20일선) 외 나머지7 중 4개
+    "rem_req": 3,                    # 필수2(선행스팬1·20일선) 외 나머지6 중 3개(대각선 제외, 2026-07-05)
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
 }
@@ -153,6 +153,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     if fresh >= 3:
         badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/4, 최근 3봉)\n"
+    if e.get("fast3_long" if long_ else "fast3_short", False):
+        badge += "⚡ <b>급반전 후보</b> — MACD·스토·RCI단 동시 점등\n"
     rem_n = sum(rem.values()); n_tot = len(rem)
     if rem_n == n_tot:
         badge += f"⭐ <b>전조건 정렬</b>(나머지 {rem_n}/{n_tot}, 그린26 포함) — 추세 진행 중, 추격 주의\n"

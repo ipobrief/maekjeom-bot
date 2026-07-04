@@ -11,7 +11,7 @@ CFG = {
     "chikou_shift": 26,            # 후행스팬 시프트
     "pivot_left": 3, "pivot_right": 3,   # 직전저점/고점(손절) 피벗
     "trend_pivot": 8,              # 대각선 주요 스윙(라이브 봇과 동일)
-    "rem_req": 4,                  # 필수2 외 나머지7 중 4개(라이브 봇과 동일)
+    "rem_req": 3,                  # 필수2 외 나머지6 중 3개(대각선 제외, 라이브 봇과 동일)
     "stop_mode": "swing",          # "swing"(직전저점/고점) 또는 "atr"
     "atr_stop_mult": 2.0,          # stop_mode=atr 일 때
     "risk_per_trade": 0.01,        # 자본 1% 리스크

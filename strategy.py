@@ -121,10 +121,12 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR6_p = rci_long_ok
     SR4_p = macd_short
     SR6_p = rci_short_ok
-    long_rem_p  = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
+    # 대각선(LR3/SR3)은 2026-07-05부터 체크리스트 제외 — 자동 추세선이 가파른 랠리를
+    # 못 따라가는 구조적 한계로 사용자가 직접 작도·확인(카드 📐 문구). 풀=6개.
+    long_rem_p  = (LR1.astype(int) + LR2.astype(int)
                    + LR4_p.astype(int) + LR5.astype(int) + LR6_p.astype(int) + LR7.astype(int))
     long_all_p  = (LM1 & LM2 & (long_rem_p  >= rem_req)).fillna(False)
-    short_rem_p = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
+    short_rem_p = (SR1.astype(int) + SR2.astype(int)
                    + SR4_p.astype(int) + SR5.astype(int) + SR6_p.astype(int) + SR7.astype(int))
     short_all_p = (SM1 & SM2 & (short_rem_p >= rem_req)).fillna(False)
 
@@ -133,14 +135,18 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     LR6 = rci_long_ok
     SR4 = macd_short
     SR6 = rci_short_ok
-    long_rem  = (LR1.astype(int) + LR2.astype(int) + LR3.astype(int)
+    long_rem  = (LR1.astype(int) + LR2.astype(int)
                  + LR4.astype(int) + LR5.astype(int) + LR6.astype(int) + LR7.astype(int))
     long_all  = (LM1 & LM2 & (long_rem  >= rem_req)).fillna(False)
     long_entry = long_all & ~long_all.shift(1, fill_value=False)
-    short_rem = (SR1.astype(int) + SR2.astype(int) + SR3.astype(int)
+    short_rem = (SR1.astype(int) + SR2.astype(int)
                  + SR4.astype(int) + SR5.astype(int) + SR6.astype(int) + SR7.astype(int))
     short_all = (SM1 & SM2 & (short_rem >= rem_req)).fillna(False)
     short_entry = short_all & ~short_all.shift(1, fill_value=False)
+
+    # ── ⚡급반전 후보: 빠른 3인방(MACD·스토·RCI단)이 동시 점등 — 급락/급등 초입 포착
+    fast3_long = (macd_long & stoch_long & rci_long_ok).fillna(False)
+    fast3_short = (macd_short & stoch_short & rci_short_ok).fillna(False)
 
     # ── 막돌파 신선도: 핵심 트리거 4개가 최근 W봉 이내에 '막 돌파'했는지 개수(0~4)
     # {MACD 0선, 스토 50선, RCI단9 0선, RCI그린26 0선} — 동시 막돌파 = 맥점 타이밍
@@ -184,6 +190,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["rci_m"] = rci_m                                     # RCI 중기13 (라벨용)
     out["rci_s_up"] = (rci_s > rci_s.shift(1)).fillna(False) # RCI 단기9 상향 여부
     out["fresh_long"], out["fresh_short"] = fresh_long, fresh_short
+    out["fast3_long"], out["fast3_short"] = fast3_long, fast3_short
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
@@ -235,7 +242,6 @@ def explain(sig_row, cfg) -> dict:
     rem_long = {
         "후행스팬 > 26봉전": bool(r["LR1"]),
         "전환선 > 기준선": bool(r["LR2"]),
-        "하락 대각선 상향돌파": bool(r["LR3"]),
         ml4: bool(r["LR4"]),
         stl: bool(r["LR5"]),
         rl6: bool(r["LR6"]),
@@ -248,7 +254,6 @@ def explain(sig_row, cfg) -> dict:
     rem_short = {
         "후행스팬 < 26봉전": bool(r["SR1"]),
         "전환선 < 기준선": bool(r["SR2"]),
-        "상승 대각선 하향이탈": bool(r["SR3"]),
         ms4: bool(r["SR4"]),
         sts: bool(r["SR5"]),
         rs6: bool(r["SR6"]),
@@ -276,6 +281,7 @@ def explain(sig_row, cfg) -> dict:
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
+        "fast3_long": bool(r.get("fast3_long", False)), "fast3_short": bool(r.get("fast3_short", False)),
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
         "swing_high": r.get("swing_high", float("nan")),

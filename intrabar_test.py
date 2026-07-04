@@ -16,7 +16,7 @@ import strategy
 
 CFG = {
     "atr_period": 14, "rci_long": 26, "chikou_shift": 26,
-    "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 4,
+    "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 3,
     "atr_stop_mult": 2.0, "risk_per_trade": 0.01,
     "maker_fee": 0.0002, "taker_fee": 0.0005, "exit_slip": 0.0003,
     "limit_offset": 0.0003,        # 지정가(메이커) 진입 = 신호가 ±0.03%
