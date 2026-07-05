@@ -79,9 +79,12 @@ def tg_send(text):
         print("⚠️ 텔레그램 미설정: TELEGRAM_TOKEN / TELEGRAM_CHAT_ID 환경변수가 비어 있습니다 (콘솔만 출력).")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat, "text": tg_html(text), "parse_mode": "HTML"}
+    thread = os.environ.get("TELEGRAM_THREAD_ID")   # 그룹 토픽(1시간봉) message_thread_id
+    if thread:
+        payload["message_thread_id"] = thread
     try:
-        r = requests.post(url, data={"chat_id": chat, "text": tg_html(text),
-                                     "parse_mode": "HTML"}, timeout=10)
+        r = requests.post(url, data=payload, timeout=10)
         j = r.json()
         if j.get("ok"):
             print("✅ 텔레그램 전송 성공")
@@ -89,7 +92,10 @@ def tg_send(text):
         # HTML 파싱 실패 시 태그 제거 평문으로 폴백(알림 유실 방지)
         print(f"⚠️ HTML 전송 실패({j.get('description')}) → 평문 재시도")
         clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-        r = requests.post(url, data={"chat_id": chat, "text": clean}, timeout=10)
+        plain = {"chat_id": chat, "text": clean}
+        if thread:
+            plain["message_thread_id"] = thread
+        r = requests.post(url, data=plain, timeout=10)
         j = r.json()
         if j.get("ok"):
             print("✅ 텔레그램 전송 성공(평문)")
