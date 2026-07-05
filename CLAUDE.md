@@ -8,7 +8,7 @@
 ## 봇 구성
 - ws_watch.py — 1시간봉 봇 (TELEGRAM_TOKEN / TELEGRAM_CHAT_ID)
 - ws_watch_1m.py — 15분봉 봇 (TELEGRAM_TOKEN_1M / TELEGRAM_CHAT_ID_1M)
-- ws_watch_1d.py — 일봉 봇 (1h 채널 재사용: TELEGRAM_TOKEN / TELEGRAM_CHAT_ID, 카드 (1d) 표기)
+- ws_watch_1d.py — 일봉 봇 (전용 채널: TELEGRAM_TOKEN_1D / TELEGRAM_CHAT_ID_1D, @chris1d_bot)
 - 경로: ~/maekjeom-bot
 - 파이썬은 `python3` (이 서버엔 `python` 명령 없음 — nohup python 하면 Exit 127)
 
