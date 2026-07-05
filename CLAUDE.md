@@ -5,10 +5,11 @@
 - IP: 161.33.150.142
 - 접속: ssh -i C:\Users\USER\.ssh\id_ed25519 ubuntu@161.33.150.142
 
-## 봇 구성
-- ws_watch.py — 1시간봉 봇 (TELEGRAM_TOKEN / TELEGRAM_CHAT_ID)
-- ws_watch_1m.py — 15분봉 봇 (TELEGRAM_TOKEN_1M / TELEGRAM_CHAT_ID_1M)
-- ws_watch_1d.py — 일봉 봇 (전용 채널: TELEGRAM_TOKEN_1D / TELEGRAM_CHAT_ID_1D, @chris1d_bot)
+## 봇 구성 (2026-07-06부터 텔레그램 그룹 "맥점신호"(-1003964313330)의 토픽으로 발송)
+- ws_watch.py — 1시간봉 봇 (TELEGRAM_TOKEN, 토픽 thread=5)
+- ws_watch_1m.py — 15분봉 봇 (TELEGRAM_TOKEN_1M, 토픽 thread=2)
+- ws_watch_1d.py — 일봉 봇 (TELEGRAM_TOKEN_1D, 토픽 thread=7)
+- ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
 - 경로: ~/maekjeom-bot
 - 파이썬은 `python3` (이 서버엔 `python` 명령 없음 — nohup python 하면 Exit 127)
 
