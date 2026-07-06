@@ -206,20 +206,6 @@ class LiveState:
         return sig.iloc[idx], sig.index[idx], sig
 
 
-def special_edge(sig, d):
-    """🎯 막돌파(fresh>=3) 또는 ⚡ 급반전(fast3)이 '직전 봉엔 없다가 지금 막 켜진' 순간만 True.
-    같은 방향 연속 억제를 우회하되, 특수 상태가 유지되는 동안의 반복 발송은 방지(에지 트리거)."""
-    f = "fresh_long" if d == "LONG" else "fresh_short"
-    t = "fast3_long" if d == "LONG" else "fast3_short"
-    def on(i):
-        try:
-            fr = sig[f].iloc[i]
-            return (fr == fr and fr >= 3) or bool(sig[t].iloc[i])
-        except Exception:
-            return False
-    return on(-1) and not on(-2)
-
-
 def handle_tick(st, k):
     now = dt.datetime.now().timestamp()
     st.upsert_bar(k)
@@ -230,8 +216,7 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
         d = e["direction"]
-        allowed = d and (not st.same_dir_blocked(d, when) or special_edge(sig, d))                   and st.sent_key != (d, when)
-        if allowed and getattr(handle_tick, "send_confirm", True):
+        if d and not st.same_dir_blocked(d, when) and getattr(handle_tick, "send_confirm", True):
             emit(fmt_signal(e, when, provisional=False))
             st.last_dir = d
             st.sent_key = (d, when)
@@ -251,7 +236,7 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
-    if d and d not in st.alerted_dirs and (not st.same_dir_blocked(d, when) or special_edge(sig, d)):
+    if d and d not in st.alerted_dirs and not st.same_dir_blocked(d, when):
         must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if not must_ok:
             st.alerted_dirs.add(d)
