@@ -146,17 +146,17 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         badge += f"⭐ <b>전조건 정렬</b>(나머지 {rem_n}/{n_tot}, 그린26 포함) — 추세 진행 중, 추격 주의\n"
     elif rem_n == n_tot - 1:
         badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
+    dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
+    top_warn = "🛑 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
-        head = (f"<b>⚡ {side} 예비신호 (잠정)</b> — {SYMBOL} ({TF})\n"
-                f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST 봉 형성중 · {left}\n"
+        head = (f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST 봉 형성중 · {left}\n"
                 f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소 가능\n")
     else:
-        head = (f"<b>{side} 진입신호</b> — {SYMBOL} ({TF})\n"
-                f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST ({TF} 마감)\n")
+        head = f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 피보나치로 타점 계산 후 신중 진입!</b>\n"
     return (
-        badge + head +
+        dir_line + top_warn + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"{fib_warn}"
