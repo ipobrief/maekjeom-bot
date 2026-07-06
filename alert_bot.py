@@ -179,7 +179,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 피보나치로 타점 계산 후 신중 진입!</b>\n"
     return (
-        dir_line + top_warn + badge + head +
+        dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"{fib_warn}"
@@ -188,6 +188,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
         f"━━━━━━━━━━━━━\n"
+        f"{top_warn}"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
         f"📐 진입 전 <b>가로 매물대·채널·피보나치</b> 반드시 작도 후 최종 결정!\n"
