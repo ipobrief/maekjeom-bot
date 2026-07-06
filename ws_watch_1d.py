@@ -139,7 +139,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     else:
         head = f"⏱ {kst(when):%Y-%m-%d} KST (일봉 마감)\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = "🛑 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
+    top_warn = "📏 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 피보나치로 타점 계산 후 신중 진입!</b>\n"
     return (
         dir_line + top_warn + badge + head +

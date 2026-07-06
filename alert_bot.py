@@ -170,7 +170,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     # 단, exit_line이 진입가보다 수익 방향에 있어야 유효 (롱: sup < px / 숏: res < px)
     # 방향(롱/숏)을 맨 첫 줄로 + 진입 전 추세선·X선 확인 최우선 경고
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = "🛑 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
+    top_warn = "📏 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"

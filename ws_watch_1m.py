@@ -147,7 +147,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     elif rem_n == n_tot - 1:
         badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = "🛑 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
+    top_warn = "📏 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"⏱ {kst(when):%Y-%m-%d %H:%M:%S} KST 봉 형성중 · {left}\n"
