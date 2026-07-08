@@ -148,7 +148,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
-        f"📥 지정가 진입 {limit:,.1f} (1호가 {'아래' if long_ else '위'})\n"
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
         f"━━━━━━━━━━━━━\n"
         f"{top_warn}"
