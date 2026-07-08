@@ -170,14 +170,14 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     # 단, exit_line이 진입가보다 수익 방향에 있어야 유효 (롱: sup < px / 숏: res < px)
     # 방향(롱/숏)을 맨 첫 줄로 + 진입 전 추세선·X선 확인 최우선 경고
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = "📏 <b>진입 전 추세선·X선 확인 필수! (모든 조건에 우선)</b>\n"
+    top_warn = "📏 <b>진입 전 추세선·X선·가로 매물대·채널 확인 필수! (모든 조건에 우선)</b>\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = (f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
                 f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소될 수 있음\n")
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
-    fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 피보나치로 타점 계산 후 신중 진입!</b>\n"
+    fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     return (
         dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
@@ -191,7 +191,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"{top_warn}"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
-        f"📐 진입 전 <b>가로 매물대·채널·피보나치</b> 반드시 작도 후 최종 결정!\n"
         f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
 
