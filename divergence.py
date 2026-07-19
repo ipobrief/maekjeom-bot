@@ -17,6 +17,12 @@ import alert_bot as ab   # tg_html 재사용
 
 KST = ZoneInfo("Asia/Seoul")
 
+# 2026-07-19: 사용자 요청으로 다이버전스 발송 중단.
+# 이유 = 추세장에서 노이즈 과다. 단순 피벗 규칙은 "진짜 다이버전스"와 "추세 하강 중
+# 미세 스윙"을 구분 못 함(예: 고점 64,722→64,724 +2p를 HH로, 하락 MACD선 위 아무 두 점을
+# LH로 잡아 오탐). 재개하려면 이 값을 True 로만 바꾸면 됨(코드는 그대로 보존).
+ENABLED = False
+
 
 def _pair_confirmed(piv, n, right, min_gap):
     """확정 피벗 중 마지막(i2)과, i2에서 min_gap봉 이상 떨어진 가장 최근 이전 피벗(i1)."""
@@ -109,6 +115,8 @@ def _send(text, token, chat, thread):
 
 def check(df, symbol, tf, token, chat, thread, sent):
     """봉 마감 시 호출: 새 다이버전스 감지→발송(dedup: sent set). thread 없으면 무동작."""
+    if not ENABLED:                       # 2026-07-19 발송 중단(상단 주석 참조)
+        return
     if not (token and chat and thread):
         return
     macd_line = ind.macd(df["close"])[0]     # 파란선(MACD선) 기준
