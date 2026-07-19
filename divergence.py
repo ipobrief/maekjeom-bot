@@ -58,10 +58,13 @@ def detect(df, macd_sig, pivot=1, max_age=2, kinds=("일반", "히든")):
     return out
 
 
+def _to_kst(t):
+    return t.tz_convert(KST) if t.tzinfo else t.tz_localize("UTC").tz_convert(KST)
+
+
 def card(d, symbol, tf):
     """다이버전스 알림 카드(HTML)."""
-    t2 = d["t2"]
-    t2 = t2.tz_convert(KST) if t2.tzinfo else t2.tz_localize("UTC").tz_convert(KST)
+    t1, t2 = _to_kst(d["t1"]), _to_kst(d["t2"])
     dirn, typ = d["dir"], d["type"]
     head_emoji = "🔻" if dirn == "하락" else "🔺"
     meaning = "추세 반전 주의" if typ == "일반" else "추세 지속(눌림/되돌림)"
@@ -70,11 +73,12 @@ def card(d, symbol, tf):
     sarr = "↑" if d["s2"] > d["s1"] else ("↓" if d["s2"] < d["s1"] else "≈")
     return (
         f"🔀 <b>{dirn} 다이버전스 ({typ})</b> — {symbol} ({tf})\n"
-        f"⏱ {t2:%Y-%m-%d %H:%M} KST 기준 (봉 마감 확정)\n"
+        f"⏱ {t2:%Y-%m-%d %H:%M} KST 확정 (봉 마감)\n"
         f"{head_emoji} <b>{meaning}</b>\n"
         f"━━━━━━━━━━━━━\n"
-        f"· 가격 {lvl} {parr}  {d['p1']:,.0f} → {d['p2']:,.0f}\n"
-        f"· MACD 시그널 {sarr}  {d['s1']:.0f} → {d['s2']:.0f}\n"
+        f"· 비교구간  ① {t1:%m-%d %H:%M}  →  ② {t2:%m-%d %H:%M}\n"
+        f"· 가격 {lvl} {parr}  {d['p1']:,.0f}(①) → {d['p2']:,.0f}(②)\n"
+        f"· MACD 시그널 {sarr}  {d['s1']:.0f}(①) → {d['s2']:.0f}(②)\n"
         f"<i>판독이지 매매권유 아님. 다이버전스는 참고용. 최종 판단은 본인.</i>"
     )
 
