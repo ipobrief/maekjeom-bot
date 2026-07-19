@@ -23,9 +23,9 @@ def _last2_confirmed(piv, n, right):
     return (pos[-2], pos[-1]) if len(pos) >= 2 else None
 
 
-def detect(df, macd_sig, pivot=2, max_age=2, kinds=("일반", "히든")):
+def detect(df, macd_sig, pivot=1, max_age=2, kinds=("일반", "히든")):
     """마지막 봉 기준 '최근 확정된' 다이버전스 목록 반환.
-    pivot: 스윙 확정에 필요한 좌우 봉수(2026-07-19 3→2, 확정 지연 단축·노이즈 소폭 증가).
+    pivot: 스윙 확정에 필요한 좌우 봉수(2026-07-19 3→2→1, 확정 지연 최소화. 사용자: 다이버전스는 드물어 노이즈 적음).
     max_age: 2번째 피벗 확정 후 이 봉수 이내만 신규로 인정(에지 트리거)."""
     n = len(df)
     out = []
