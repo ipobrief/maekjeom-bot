@@ -26,6 +26,7 @@ import data
 import strategy
 import indicators as ind
 import alert_bot as ab            # tg_html(HTML 이스케이프) 재사용
+import divergence
 
 # ── 타임프레임 설정 ────────────────────────────────────────────────────────────
 SYMBOL = "BTCUSDT"
@@ -186,6 +187,7 @@ class LiveState:
         self.alerted_dirs = set()
         self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
         self.sent_key = None          # 마지막 발송 (방향, 봉) — 같은 봉 중복 방지
+        self.sent_div = set()         # 발송한 다이버전스 (종류,방향,2번째피벗시각) — 중복 방지
         self.last_recompute = 0.0
 
     def same_dir_blocked(self, d, when):
@@ -239,6 +241,11 @@ def handle_tick(st, k):
         else:
             why = "방향전환 없음(억제중)" if d and st.same_dir_blocked(d, when) else (d or "신호없음")
             print(f"[ws-1m] {kst(when):%m-%d %H:%M:%S} 마감: {why}")
+        divergence.check(st.df1m, SYMBOL, TF,
+                         os.environ.get("TELEGRAM_TOKEN_1M"),
+                         os.environ.get("TELEGRAM_CHAT_ID_1M"),
+                         os.environ.get("TELEGRAM_DIV_THREAD_1M"),
+                         st.sent_div)
         st.alerted_bar = None
         st.alerted_dirs = set()
         return

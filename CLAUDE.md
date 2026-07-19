@@ -11,6 +11,13 @@
 - ws_watch_1d.py — 일봉 봇 (TELEGRAM_TOKEN_1D, 토픽 thread=7)
 - ws_watch_4h.py — 4시간봉 봇 (TELEGRAM_TOKEN_4H, 토픽 thread=218, @chris4h_bot)
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
+
+### 다이버전스 전용 토픽 (2026-07-19 추가, 맥점과 별개 스트림)
+각 봉이 다이버전스 신호를 별도 토픽으로만 발송. env로 thread_id 지정(없으면 발송 안 함).
+- 15m → `TELEGRAM_DIV_THREAD_1M`  · 1h → `TELEGRAM_DIV_THREAD_1H`
+- 4h  → `TELEGRAM_DIV_THREAD_4H`  · 1d → `TELEGRAM_DIV_THREAD_1D`
+- 봇 토큰/챗ID는 기존 것 재사용(1h=TELEGRAM_TOKEN, 15m=_1M, 4h=_4H/_1D폴백, 1d=_1D).
+- systemd EnvironmentFile 에 위 4개 추가 후 restart.
 - 경로: ~/maekjeom-bot
 - 파이썬은 `python3` (이 서버엔 `python` 명령 없음 — nohup python 하면 Exit 127)
 

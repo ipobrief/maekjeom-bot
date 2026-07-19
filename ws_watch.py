@@ -30,6 +30,7 @@ import websockets
 import data
 import strategy
 import alert_bot as ab
+import divergence
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{ab.SYMBOL.lower()}@kline_{ab.TF}"
 HTF_REFRESH_SEC = 300        # 상위TF(1h/4h/1d) 갱신 주기
@@ -48,6 +49,7 @@ class LiveState:
         self.alerted_dirs = set()     # 이 형성봉에서 이미 알린 방향들(중복 방지)
         self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
         self.sent_key = None          # 마지막 발송 (방향, 봉) — 잠정→확정 같은 봉 중복 방지
+        self.sent_div = set()         # 발송한 다이버전스 (종류,방향,2번째피벗시각) — 중복 방지
         self.last_recompute = 0.0
 
     def same_dir_blocked(self, d, when):
@@ -107,6 +109,12 @@ def handle_tick(st, k):
         else:
             why = "방향전환 없음(억제중)" if d and st.same_dir_blocked(d, when) else (d or "신호없음")
             print(f"[ws] {ab.kst(when):%m-%d %H:%M} 마감: {why} (확정 점검)")
+        # 다이버전스(맥점과 별개 스트림) — 봉 마감 기준, 전용 토픽으로 발송
+        divergence.check(st.df15, ab.SYMBOL, ab.TF,
+                         os.environ.get("TELEGRAM_TOKEN"),
+                         os.environ.get("TELEGRAM_CHAT_ID"),
+                         os.environ.get("TELEGRAM_DIV_THREAD_1H"),
+                         st.sent_div)
         # 봉이 바뀌었으니 예비신호 추적 리셋
         st.alerted_bar = None
         st.alerted_dirs = set()
