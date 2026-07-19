@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""다이버전스 감지 (MACD 시그널선 기준) — 맥점 신호와 별개 스트림.
+"""다이버전스 감지 (MACD선=파란선 기준) — 맥점 신호와 별개 스트림.
 
 종류(과장 제외, 일반·히든만):
   일반(반전): 하락=가격HH & MACD LH / 상승=가격LL & MACD HL
   히든(지속): 하락=가격LH & MACD HH / 상승=가격HL & MACD LL
-가격 스윙 고/저점 2개(피벗3)를 이어 그 시점 MACD 시그널선 값과 비교.
+가격 스윙 고/저점 2개를 이어 그 시점 MACD선(macd()[0], 파란선) 값과 비교.
+두 스윙은 최소 min_gap(기본 10)봉 이상 떨어진 것만 비교(너무 가까운 스윙 제외).
 봉 마감 기준, 새로 확정된 것만 1회 발송(dedup은 호출측 sent set).
 """
 import numpy as np
@@ -17,39 +18,45 @@ import alert_bot as ab   # tg_html 재사용
 KST = ZoneInfo("Asia/Seoul")
 
 
-def _last2_confirmed(piv, n, right):
-    """확정된(우측 right봉 지난) 스윙 피벗의 마지막 2개 위치 반환."""
+def _pair_confirmed(piv, n, right, min_gap):
+    """확정 피벗 중 마지막(i2)과, i2에서 min_gap봉 이상 떨어진 가장 최근 이전 피벗(i1)."""
     pos = [p for p in np.where(~np.isnan(piv.values))[0] if p <= n - 1 - right]
-    return (pos[-2], pos[-1]) if len(pos) >= 2 else None
+    if len(pos) < 2:
+        return None
+    i2 = pos[-1]
+    earlier = [p for p in pos if i2 - p >= min_gap]
+    return (earlier[-1], i2) if earlier else None
 
 
-def detect(df, macd_sig, pivot=1, max_age=2, kinds=("일반", "히든")):
+def detect(df, macd_ind, pivot=1, max_age=2, min_gap=10, kinds=("일반", "히든")):
     """마지막 봉 기준 '최근 확정된' 다이버전스 목록 반환.
-    pivot: 스윙 확정에 필요한 좌우 봉수(2026-07-19 3→2→1, 확정 지연 최소화. 사용자: 다이버전스는 드물어 노이즈 적음).
+    macd_ind: MACD선(파란선, macd()[0]) 시리즈.
+    pivot: 스윙 확정에 필요한 좌우 봉수(피벗1, 확정 지연 최소화).
+    min_gap: 비교하는 두 스윙 사이 최소 봉 간격(2026-07-19 추가, 기본 10 — 너무 가까운 스윙 제외).
     max_age: 2번째 피벗 확정 후 이 봉수 이내만 신규로 인정(에지 트리거)."""
     n = len(df)
     out = []
     sh = ind.swing_high(df, pivot, pivot)
     sl = ind.swing_low(df, pivot, pivot)
 
-    hp = _last2_confirmed(sh, n, pivot)
+    hp = _pair_confirmed(sh, n, pivot, min_gap)
     if hp:
         i1, i2 = hp
         if (n - 1) - (i2 + pivot) <= max_age:                     # 최근 확정
             p1, p2 = float(df["high"].iloc[i1]), float(df["high"].iloc[i2])
-            s1, s2 = float(macd_sig.iloc[i1]), float(macd_sig.iloc[i2])
+            s1, s2 = float(macd_ind.iloc[i1]), float(macd_ind.iloc[i2])
             base = dict(t1=df.index[i1], p1=p1, s1=s1, t2=df.index[i2], p2=p2, s2=s2)
             if "일반" in kinds and p2 > p1 and s2 < s1:
                 out.append({"type": "일반", "dir": "하락", **base})
             if "히든" in kinds and p2 < p1 and s2 > s1:
                 out.append({"type": "히든", "dir": "하락", **base})
 
-    lp = _last2_confirmed(sl, n, pivot)
+    lp = _pair_confirmed(sl, n, pivot, min_gap)
     if lp:
         i1, i2 = lp
         if (n - 1) - (i2 + pivot) <= max_age:
             p1, p2 = float(df["low"].iloc[i1]), float(df["low"].iloc[i2])
-            s1, s2 = float(macd_sig.iloc[i1]), float(macd_sig.iloc[i2])
+            s1, s2 = float(macd_ind.iloc[i1]), float(macd_ind.iloc[i2])
             base = dict(t1=df.index[i1], p1=p1, s1=s1, t2=df.index[i2], p2=p2, s2=s2)
             if "일반" in kinds and p2 < p1 and s2 > s1:
                 out.append({"type": "일반", "dir": "상승", **base})
@@ -78,7 +85,7 @@ def card(d, symbol, tf):
         f"━━━━━━━━━━━━━\n"
         f"· 비교구간  ① {t1:%m-%d %H:%M}  →  ② {t2:%m-%d %H:%M}\n"
         f"· 가격 {lvl} {parr}  {d['p1']:,.0f}(①) → {d['p2']:,.0f}(②)\n"
-        f"· MACD 시그널 {sarr}  {d['s1']:.0f}(①) → {d['s2']:.0f}(②)\n"
+        f"· MACD선(파란선) {sarr}  {d['s1']:.0f}(①) → {d['s2']:.0f}(②)\n"
         f"<i>판독이지 매매권유 아님. 다이버전스는 참고용. 최종 판단은 본인.</i>"
     )
 
@@ -104,8 +111,8 @@ def check(df, symbol, tf, token, chat, thread, sent):
     """봉 마감 시 호출: 새 다이버전스 감지→발송(dedup: sent set). thread 없으면 무동작."""
     if not (token and chat and thread):
         return
-    macd_sig = ind.macd(df["close"])[1]
-    for dv in detect(df, macd_sig):
+    macd_line = ind.macd(df["close"])[0]     # 파란선(MACD선) 기준
+    for dv in detect(df, macd_line):
         key = (dv["type"], dv["dir"], dv["t2"])
         if key in sent:
             continue
