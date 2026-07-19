@@ -227,7 +227,7 @@ def handle_tick(st, k):
         divergence.check(st.df4h, SYMBOL, TF,
                          os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D"),
                          os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
-                         os.environ.get("TELEGRAM_DIV_THREAD_4H"),
+                         os.environ.get("TELEGRAM_DIV_THREAD_4H") or os.environ.get("TELEGRAM_THREAD_ID_4H"),
                          st.sent_div)
         st.alerted_bar = None
         st.alerted_dirs = set()

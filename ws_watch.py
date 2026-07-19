@@ -113,7 +113,7 @@ def handle_tick(st, k):
         divergence.check(st.df15, ab.SYMBOL, ab.TF,
                          os.environ.get("TELEGRAM_TOKEN"),
                          os.environ.get("TELEGRAM_CHAT_ID"),
-                         os.environ.get("TELEGRAM_DIV_THREAD_1H"),
+                         os.environ.get("TELEGRAM_DIV_THREAD_1H") or os.environ.get("TELEGRAM_THREAD_ID"),
                          st.sent_div)
         # 봉이 바뀌었으니 예비신호 추적 리셋
         st.alerted_bar = None
