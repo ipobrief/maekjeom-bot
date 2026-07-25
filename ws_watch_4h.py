@@ -217,7 +217,10 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
         d = e["direction"]
-        if d and not st.same_dir_blocked(d, when) and getattr(handle_tick, "send_confirm", True):
+        # 🎯 막돌파 맥점(fresh>=3): 같은 방향이어도 억제 우회(2026-07-25). 잠정→확정 중복은 sent_key로 방지.
+        breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
+        if d and st.sent_key != (d, when) and (not st.same_dir_blocked(d, when) or breakout) \
+                and getattr(handle_tick, "send_confirm", True):
             emit(fmt_signal(e, when, provisional=False))
             st.last_dir = d
             st.sent_key = (d, when)
@@ -242,7 +245,8 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
-    if d and d not in st.alerted_dirs and not st.same_dir_blocked(d, when):
+    breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
+    if d and d not in st.alerted_dirs and (not st.same_dir_blocked(d, when) or breakout):
         must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if not must_ok:
             st.alerted_dirs.add(d)

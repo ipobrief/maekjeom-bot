@@ -99,9 +99,11 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)        # 방금 마감된 봉
         e = ab.enrich(row, sig)
         d = e["direction"]
-        # 같은 방향 연속은 억제. 단 🎯/⚡ 특수 신호가 '막 켜진' 봉은 예외(에지 1회 발송).
-        allowed = d and not st.same_dir_blocked(d, when) \
-                  and st.sent_key != (d, when)
+        # 🎯 막돌파 맥점(fresh>=3): 같은 방향이어도 억제 우회(1h/4h/1d, 2026-07-25). 15m은 미적용.
+        breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
+        # 같은 방향 연속은 억제하되, 🎯 막돌파면 예외. 잠정→확정 같은 봉 중복은 sent_key로 방지.
+        allowed = d and st.sent_key != (d, when) \
+                  and (not st.same_dir_blocked(d, when) or breakout)
         if allowed and getattr(handle_tick, "send_confirm", True):
             ab.emit(ab.fmt_signal(e, when, provisional=False))
             st.last_dir = d
@@ -131,9 +133,10 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
+    breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
     # 억제: ① 같은 봉·같은 방향 중복(임계선 깜빡임) ② 직전 발송과 같은 방향 연속(봉 넘어 노이즈).
-    #       반대 신호(변곡)가 나와야 재허용. 단 🎯/⚡ 특수 신호가 막 켜진 봉은 예외(에지 1회).
-    if d and d not in st.alerted_dirs and not st.same_dir_blocked(d, when):
+    #       반대 신호(변곡)가 나와야 재허용. 단 🎯 막돌파면 같은 방향이어도 예외(1h/4h/1d).
+    if d and d not in st.alerted_dirs and (not st.same_dir_blocked(d, when) or breakout):
         # 필수조건(선행스팬1·20일선)이 실제로 충족된 경우만 발송
         must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if not must_ok:
