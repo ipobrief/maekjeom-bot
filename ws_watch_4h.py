@@ -135,8 +135,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
             left = f"마감 {mins_left:.0f}분 전"
         else:
             left = "마감 전"
-        head = (f"⏱ {kst(when):%Y-%m-%d %H:%M} 4시간봉 형성중 · {left}\n"
-                f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소 가능\n")
+        head = f"⏱ {kst(when):%Y-%m-%d %H:%M} 4시간봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST (4h 마감)\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"

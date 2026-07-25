@@ -173,8 +173,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     top_warn = "📏 <b>진입 전 추세선(X선·20일선 돌파)·가로 매물대·채널 확인 필수! (모든 조건에 우선)</b>\n"
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
-        head = (f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
-                f"⚠️ <b>마감 전 현재가 기준</b> — 봉 마감까지 되돌리면 취소될 수 있음\n")
+        head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
