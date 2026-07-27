@@ -13,11 +13,12 @@
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
 
 ### 막돌파신호 방 (2026-07-25 추가) — 🎯 막돌파 맥점 전용 별도 그룹
-- 새 텔레그램 그룹 "막돌파신호" chat_id=-1004425656249, 봇 4개 초대·관리자.
-- 토픽: 15분봉=2 / 1시간봉=4 / 4시간봉=6 / 1일봉=8
-- env(/etc/maekjeom-bot.env): `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_1M=2/_1H=4/_4H=6/_1D=8`
-- 동작: 🎯 막돌파(fresh≥3)는 이 방으로만(4봉 전부, 같은 방향이어도). 기존 맥점신호 방은 막돌파 제외+방향전환시 1회.
+- 새 텔레그램 그룹 "막돌파신호" chat_id=-1004425656249, 봇 초대·관리자.
+- 토픽: 15분봉=2 / 1시간봉=4 / 4시간봉=6 / 1일봉=8 / **3분봉=14**
+- env(/etc/maekjeom-bot.env): `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_1M=2/_1H=4/_4H=6/_1D=8/_3M=14`
+- 동작: 🎯 막돌파(fresh≥3)는 이 방으로만(15m/1h/4h/1d/3m, 같은 방향이어도). 기존 맥점신호 방은 막돌파 제외+방향전환시 1회.
 - 봇 토큰은 기존 재사용. env 없으면 기존 방으로 폴백.
+- **3분봉 봇(ws_watch_3m.py, 2026-07-27)은 막돌파신호 방 '전용'** — 일반 신호 미발송, 막돌파만. 토큰은 chris15m_bot(TELEGRAM_TOKEN_1M) 재사용.
 
 ### 다이버전스 발송 (2026-07-19 추가, 맥점과 별개 메시지)
 각 봉이 다이버전스 카드를 **기존 토픽에 별도 메시지**로 발송(카드 헤더 🔀로 맥점과 구분).
@@ -33,6 +34,7 @@
 - maekjeom-bot-15m.service   — 15분봉 (15m)
 - maekjeom-bot-1d.service    — 일봉 (1d)
 - maekjeom-bot-4h.service    — 4시간봉 (4h)
+- maekjeom-bot-3m.service    — 3분봉 (3m, 막돌파신호 방 전용)
 
 수동 `nohup python3 ...` 로 띄우면 systemd 봇과 중복 실행되어 텔레그램 알림이
 겹친다. 반드시 systemctl 로 관리할 것.
@@ -44,17 +46,17 @@
 ## 업데이트 & 재시작 절차 (서버에서)
 cd ~/maekjeom-bot
 git pull origin main
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m
 
 ## 봇 상태 확인 (서버에서)
-systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h --no-pager
-ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_1m/_1d/_4h) 딱 4개
+systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m --no-pager
+ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_1m/_1d/_4h/_3m) 딱 5개
 sudo journalctl -u maekjeom-bot -f
 sudo journalctl -u maekjeom-bot-15m -f
 
 ## 중복 프로세스 정리 (수동 nohup 등으로 중복 떴을 때)
 pkill -9 -f ws_watch
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m
 
 ## 코드 변경 → 배포 흐름
 1. 코드 수정 후 GitHub main 에 push
