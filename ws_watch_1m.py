@@ -198,6 +198,7 @@ class LiveState:
         self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
         self.sent_key = None          # 마지막 발송 (방향, 봉) — 같은 봉 중복 방지
         self.sent_bo = None           # 막돌파방 발송 (방향, 봉) — 같은 봉 중복 방지
+        self.bo_last_dir = None        # 막돌파방 직전 방향 — 같은 방향 억제(반대 막돌파=변곡 전까지 1회)
         self.sent_div = set()         # 발송한 다이버전스 (종류,방향,2번째피벗시각) — 중복 방지
         self.last_recompute = 0.0
 
@@ -248,9 +249,10 @@ def handle_tick(st, k):
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         if d and getattr(handle_tick, "send_confirm", True):
             if breakout and bo_ready():
-                if st.sent_bo != (d, when):
+                if d != st.bo_last_dir and st.sent_bo != (d, when):
                     emit_breakout(fmt_signal(e, when, provisional=False))
                     st.sent_bo = (d, when)
+                    st.bo_last_dir = d
                     st.last_dir = d
             elif not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
                 emit(fmt_signal(e, when, provisional=False))
@@ -284,7 +286,7 @@ def handle_tick(st, k):
     breakout = e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
     route_bo = breakout and bo_ready()      # 🎯 막돌파 → 막돌파신호 방(같은 방향이어도)
     if route_bo:
-        gate = st.sent_bo != (d, when)
+        gate = d != st.bo_last_dir and st.sent_bo != (d, when)
     else:
         gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)
     if not gate:
@@ -302,6 +304,7 @@ def handle_tick(st, k):
     if route_bo:
         emit_breakout(card)
         st.sent_bo = (d, when)
+        st.bo_last_dir = d
     else:
         emit(card)
         st.alerted_dirs.add(d)

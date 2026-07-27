@@ -126,6 +126,7 @@ class LiveState:
         self.htf_loaded_at = 0.0
         self.alerted_bar = None
         self.sent_bo = None           # 막돌파방 발송 (방향, 봉) — 같은 봉 중복 방지
+        self.bo_last_dir = None        # 막돌파방 직전 방향 — 같은 방향 억제(반대 막돌파=변곡 전까지 1회)
         self.last_recompute = 0.0
 
     def load_base(self):
@@ -168,9 +169,10 @@ def handle_tick(st, k):
         d = e["direction"]      # 확정: 에지 봉에서만 방향 설정
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         if d and breakout and bo_ready() and getattr(handle_tick, "send_confirm", True):
-            if st.sent_bo != (d, when):
+            if d != st.bo_last_dir and st.sent_bo != (d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False))
                 st.sent_bo = (d, when)
+                st.bo_last_dir = d
         else:
             print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: {'막돌파아님' if d else '신호없음'}")
         st.alerted_bar = None
@@ -190,7 +192,7 @@ def handle_tick(st, k):
     breakout = e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
     if not (breakout and bo_ready()):
         return
-    if st.sent_bo == (d, when):
+    if d == st.bo_last_dir or st.sent_bo == (d, when):   # 같은 방향은 변곡 전까지 1회
         return
     must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
     if not must_ok:
@@ -201,6 +203,7 @@ def handle_tick(st, k):
         return
     emit_breakout(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
     st.sent_bo = (d, when)
+    st.bo_last_dir = d
 
 
 async def run(send_confirm=True):
