@@ -33,6 +33,17 @@ import alert_bot as ab
 import divergence
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{ab.SYMBOL.lower()}@kline_{ab.TF}"
+
+# 막돌파신호 방(별도 그룹) — 🎯 막돌파 맥점만 이쪽으로. 미설정이면 기존 방으로 폴백.
+def bo_ready():
+    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_1H"))
+
+def emit_breakout(text):
+    clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+    print("🎯[막돌파방]", clean[:50])
+    return ab.tg_send_room(text, os.environ.get("TELEGRAM_TOKEN"),
+                           os.environ.get("TELEGRAM_CHAT_ID_BO"),
+                           os.environ.get("TELEGRAM_BO_THREAD_1H"))
 HTF_REFRESH_SEC = 300        # 상위TF(1h/4h/1d) 갱신 주기
 RECOMPUTE_MIN_SEC = 120      # 잠정 재계산 최소 간격 (중복 방지)
 PROV_MIN_MINS_LEFT = 15      # 잔여시간 이 미만이면 잠정신호 억제 (분)
@@ -49,6 +60,7 @@ class LiveState:
         self.alerted_dirs = set()     # 이 형성봉에서 이미 알린 방향들(중복 방지)
         self.last_dir = None          # 직전 발송 방향(봉 넘어 유지) — 같은 방향 연속 억제
         self.sent_key = None          # 마지막 발송 (방향, 봉) — 잠정→확정 같은 봉 중복 방지
+        self.sent_bo = None           # 막돌파방 발송 (방향, 봉) — 같은 봉 중복 방지
         self.sent_div = set()         # 발송한 다이버전스 (종류,방향,2번째피벗시각) — 중복 방지
         self.last_recompute = 0.0
 
@@ -99,18 +111,23 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)        # 방금 마감된 봉
         e = ab.enrich(row, sig)
         d = e["direction"]
-        # 🎯 막돌파 맥점(fresh>=3): 같은 방향이어도 억제 우회(1h/4h/1d, 2026-07-25). 15m은 미적용.
+        # 🎯 막돌파 맥점(fresh>=3)은 막돌파신호 방으로(같은 방향이어도), 그 외는 기존 방(방향전환시 1회).
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-        # 같은 방향 연속은 억제하되, 🎯 막돌파면 예외. 잠정→확정 같은 봉 중복은 sent_key로 방지.
-        allowed = d and st.sent_key != (d, when) \
-                  and (not st.same_dir_blocked(d, when) or breakout)
-        if allowed and getattr(handle_tick, "send_confirm", True):
-            ab.emit(ab.fmt_signal(e, when, provisional=False))
-            st.last_dir = d
-            st.sent_key = (d, when)
+        if d and getattr(handle_tick, "send_confirm", True):
+            if breakout and bo_ready():
+                if st.sent_bo != (d, when):
+                    emit_breakout(ab.fmt_signal(e, when, provisional=False))
+                    st.sent_bo = (d, when)
+                    st.last_dir = d
+            elif not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
+                ab.emit(ab.fmt_signal(e, when, provisional=False))
+                st.last_dir = d
+                st.sent_key = (d, when)
+            else:
+                why = "방향전환 없음(억제중)" if st.same_dir_blocked(d, when) else "중복"
+                print(f"[ws] {ab.kst(when):%m-%d %H:%M} 마감: {why} (확정 점검)")
         else:
-            why = "방향전환 없음(억제중)" if d and st.same_dir_blocked(d, when) else (d or "신호없음")
-            print(f"[ws] {ab.kst(when):%m-%d %H:%M} 마감: {why} (확정 점검)")
+            print(f"[ws] {ab.kst(when):%m-%d %H:%M} 마감: {d or '신호없음'} (확정 점검)")
         # 다이버전스(맥점과 별개 스트림) — 봉 마감 기준, 전용 토픽으로 발송
         divergence.check(st.df15, ab.SYMBOL, ab.TF,
                          os.environ.get("TELEGRAM_TOKEN"),
@@ -133,24 +150,36 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
-    breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-    # 억제: ① 같은 봉·같은 방향 중복(임계선 깜빡임) ② 직전 발송과 같은 방향 연속(봉 넘어 노이즈).
-    #       반대 신호(변곡)가 나와야 재허용. 단 🎯 막돌파면 같은 방향이어도 예외(1h/4h/1d).
-    if d and d not in st.alerted_dirs and (not st.same_dir_blocked(d, when) or breakout):
-        # 필수조건(선행스팬1·20일선)이 실제로 충족된 경우만 발송
-        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
-        if not must_ok:
-            st.alerted_dirs.add(d)
-            return
-        mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-        mins_left = max(0, mins_left)
-        if mins_left < PROV_MIN_MINS_LEFT:
-            st.alerted_dirs.add(d)
-            return
-        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
+    if not d:
+        return
+    breakout = e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
+    route_bo = breakout and bo_ready()      # 🎯 막돌파 → 막돌파신호 방(같은 방향이어도)
+    # 기존 방=방향전환시 1회(같은 봉 중복 방지). 막돌파방=같은 방향이어도, 같은 봉만 1회.
+    if route_bo:
+        gate = st.sent_bo != (d, when)
+    else:
+        gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)
+    if not gate:
+        return
+    # 필수조건(선행스팬1·20일선)이 실제로 충족된 경우만 발송
+    must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
+    if not must_ok:
         st.alerted_dirs.add(d)
-        st.last_dir = d
+        return
+    mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+    mins_left = max(0, mins_left)
+    if mins_left < PROV_MIN_MINS_LEFT:
+        st.alerted_dirs.add(d)
+        return
+    card = ab.fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d)
+    if route_bo:
+        emit_breakout(card)
+        st.sent_bo = (d, when)
+    else:
+        ab.emit(card)
+        st.alerted_dirs.add(d)
         st.sent_key = (d, when)
+    st.last_dir = d
 
 
 async def run(send_confirm=True):

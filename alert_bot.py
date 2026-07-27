@@ -113,6 +113,26 @@ def emit(text):
     tg_send(text)
 
 
+def tg_send_room(text, token, chat, thread):
+    """지정 (token,chat,thread)로 전송(HTML→평문 폴백). 막돌파신호 방 등 별도 방용. 값 없으면 False."""
+    if not (token and chat and thread):
+        return False
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat, "text": tg_html(text),
+               "parse_mode": "HTML", "message_thread_id": thread}
+    try:
+        j = requests.post(url, data=payload, timeout=10).json()
+        if j.get("ok"):
+            return True
+        clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+        j = requests.post(url, data={"chat_id": chat, "text": clean,
+                                     "message_thread_id": thread}, timeout=10).json()
+        return bool(j.get("ok"))
+    except Exception as e:
+        print("❌ 막돌파방 전송 오류:", e)
+        return False
+
+
 def snapshot(live=False):
     """현재 데이터로 신호 계산. 주력=15분봉, 상위TF=1h/4h/1d.
     live=False → 마지막 마감봉(-2) 기준(확정).

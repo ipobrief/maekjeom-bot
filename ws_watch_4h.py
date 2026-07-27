@@ -94,6 +94,18 @@ def emit(text):
     tg_send(text)
 
 
+def bo_ready():
+    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_4H"))
+
+def emit_breakout(text):
+    clean = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+    print("🎯[막돌파방]", clean[:50])
+    return ab.tg_send_room(text,
+                           os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D"),
+                           os.environ.get("TELEGRAM_CHAT_ID_BO"),
+                           os.environ.get("TELEGRAM_BO_THREAD_4H"))
+
+
 # ── 포맷터 ─────────────────────────────────────────────────────────────────────
 def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
@@ -171,6 +183,7 @@ class LiveState:
         self.alerted_dirs = set()
         self.last_dir = None          # 직전 발송 방향 — 변곡 전까지 같은 방향 억제
         self.sent_key = None          # 마지막 발송 (방향, 봉) — 같은 봉 중복 방지
+        self.sent_bo = None           # 막돌파방 발송 (방향, 봉) — 같은 봉 중복 방지
         self.sent_div = set()         # 발송한 다이버전스 (종류,방향,2번째피벗시각) — 중복 방지
         self.last_recompute = 0.0
 
@@ -216,16 +229,23 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
         d = e["direction"]
-        # 🎯 막돌파 맥점(fresh>=3): 같은 방향이어도 억제 우회(2026-07-25). 잠정→확정 중복은 sent_key로 방지.
+        # 🎯 막돌파는 막돌파신호 방으로(같은 방향이어도), 그 외는 기존 방(방향전환시 1회).
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-        if d and st.sent_key != (d, when) and (not st.same_dir_blocked(d, when) or breakout) \
-                and getattr(handle_tick, "send_confirm", True):
-            emit(fmt_signal(e, when, provisional=False))
-            st.last_dir = d
-            st.sent_key = (d, when)
+        if d and getattr(handle_tick, "send_confirm", True):
+            if breakout and bo_ready():
+                if st.sent_bo != (d, when):
+                    emit_breakout(fmt_signal(e, when, provisional=False))
+                    st.sent_bo = (d, when)
+                    st.last_dir = d
+            elif not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
+                emit(fmt_signal(e, when, provisional=False))
+                st.last_dir = d
+                st.sent_key = (d, when)
+            else:
+                why = "방향전환 없음(억제중)" if st.same_dir_blocked(d, when) else "중복"
+                print(f"[ws-4h] {kst(when):%m-%d} 마감: {why}")
         else:
-            why = "방향전환 없음(억제중)" if d and st.same_dir_blocked(d, when) else (d or "신호없음")
-            print(f"[ws-4h] {kst(when):%m-%d} 마감: {why}")
+            print(f"[ws-4h] {kst(when):%m-%d} 마감: {d or '신호없음'}")
         divergence.check(st.df4h, SYMBOL, TF,
                          os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D"),
                          os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
@@ -244,21 +264,34 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
     d = e.get("direction_active", e["direction"])
-    breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-    if d and d not in st.alerted_dirs and (not st.same_dir_blocked(d, when) or breakout):
-        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
-        if not must_ok:
-            st.alerted_dirs.add(d)
-            return
-        mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-        mins_left = max(0, mins_left)
-        if mins_left < PROV_MIN_MINS_LEFT:
-            st.alerted_dirs.add(d)
-            return
-        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
+    if not d:
+        return
+    breakout = e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
+    route_bo = breakout and bo_ready()      # 🎯 막돌파 → 막돌파신호 방(같은 방향이어도)
+    if route_bo:
+        gate = st.sent_bo != (d, when)
+    else:
+        gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)
+    if not gate:
+        return
+    must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
+    if not must_ok:
         st.alerted_dirs.add(d)
-        st.last_dir = d
+        return
+    mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+    mins_left = max(0, mins_left)
+    if mins_left < PROV_MIN_MINS_LEFT:
+        st.alerted_dirs.add(d)
+        return
+    card = fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d)
+    if route_bo:
+        emit_breakout(card)
+        st.sent_bo = (d, when)
+    else:
+        emit(card)
+        st.alerted_dirs.add(d)
         st.sent_key = (d, when)
+    st.last_dir = d
 
 
 async def run(send_confirm=True):
