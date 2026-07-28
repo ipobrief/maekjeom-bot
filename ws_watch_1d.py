@@ -152,8 +152,9 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
     top_warn = "📏 <b>진입 전 추세선(X선·20일선 돌파)·가로 매물대·채널 확인 필수! (모든 조건에 우선)</b>\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
+    box = f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/4</pre>\n" if fresh >= 3 else ""
     return (
-        dir_line + badge + head +
+        box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"{fib_warn}"
