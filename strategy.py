@@ -148,19 +148,26 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     fast3_long = (macd_long & stoch_long & rci_long_ok).fillna(False)
     fast3_short = (macd_short & stoch_short & rci_short_ok).fillna(False)
 
-    # ── 막돌파 신선도: 핵심 트리거 4개가 최근 W봉 이내에 '막 돌파'했는지 개수(0~4)
-    # {MACD 0선, 스토 50선, RCI단9 0선, RCI그린26 0선} — 동시 막돌파 = 맥점 타이밍
+    # ── 막돌파 신선도(2026-07-27 재정의): 3그룹이 최근 W봉 이내에 '막 돌파'했는지 개수(0~3)
+    #   MACD(필수): GC(선>시그널 크로스) 또는 0선 상향돌파
+    #   스토 %K(필수): 50선 상향돌파
+    #   RCI(택일): RCI단9 0선 상향돌파 또는 RCI그린26 0선 상향돌파
+    #   → fresh==3(세 그룹 모두)이 막돌파. 숏은 거울(DC/하향).
     W = cfg.get("fresh_bars", 3)
     def _fresh(ev):
         return ev.astype(int).rolling(W, min_periods=1).max()
-    fresh_long = (_fresh((macd_line > 0) & (macd_line.shift(1) <= 0))
-                  + _fresh((k > 50) & (k.shift(1) <= 50))
-                  + _fresh((rci_s > 0) & (rci_s.shift(1) <= 0))
-                  + _fresh((rci_long > 0) & (rci_long.shift(1) <= 0)))
-    fresh_short = (_fresh((macd_line < 0) & (macd_line.shift(1) >= 0))
-                   + _fresh((k < 50) & (k.shift(1) >= 50))
-                   + _fresh((rci_s < 0) & (rci_s.shift(1) >= 0))
-                   + _fresh((rci_long < 0) & (rci_long.shift(1) >= 0)))
+    macd_up_trig = _fresh(((macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1)))   # GC 발생
+                          | ((macd_line > 0) & (macd_line.shift(1) <= 0)))                        # 0선 상향
+    stoch_up_trig = _fresh((k > 50) & (k.shift(1) <= 50))
+    rci_up_trig = _fresh(((rci_s > 0) & (rci_s.shift(1) <= 0))
+                         | ((rci_long > 0) & (rci_long.shift(1) <= 0)))
+    fresh_long = macd_up_trig + stoch_up_trig + rci_up_trig
+    macd_dn_trig = _fresh(((macd_line < macd_sig) & (macd_line.shift(1) >= macd_sig.shift(1)))    # DC 발생
+                          | ((macd_line < 0) & (macd_line.shift(1) >= 0)))                        # 0선 하향
+    stoch_dn_trig = _fresh((k < 50) & (k.shift(1) >= 50))
+    rci_dn_trig = _fresh(((rci_s < 0) & (rci_s.shift(1) >= 0))
+                         | ((rci_long < 0) & (rci_long.shift(1) >= 0)))
+    fresh_short = macd_dn_trig + stoch_dn_trig + rci_dn_trig
 
     # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
     long_exit = short_all
