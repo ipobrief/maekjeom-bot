@@ -67,11 +67,13 @@ def tg_html(text):
     카드 본문에 '종가 > 선행스팬1' 같은 부등호가 있어 그대로 보내면 파싱이 깨짐."""
     t = (text.replace("<b>", "\x01").replace("</b>", "\x02")
              .replace("<i>", "\x03").replace("</i>", "\x04")
-             .replace("<pre>", "\x05").replace("</pre>", "\x06"))
+             .replace("<pre>", "\x05").replace("</pre>", "\x06")
+             .replace("<blockquote>", "\x07").replace("</blockquote>", "\x08"))
     t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return (t.replace("\x01", "<b>").replace("\x02", "</b>")
              .replace("\x03", "<i>").replace("\x04", "</i>")
-             .replace("\x05", "<pre>").replace("\x06", "</pre>"))
+             .replace("\x05", "<pre>").replace("\x06", "</pre>")
+             .replace("\x07", "<blockquote>").replace("\x08", "</blockquote>"))
 
 
 def tg_send(text):
@@ -127,7 +129,8 @@ def tg_send_room(text, token, chat, thread):
         if j.get("ok"):
             return True
         clean = (text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-                     .replace("<pre>", "").replace("</pre>", ""))
+                     .replace("<pre>", "").replace("</pre>", "")
+                     .replace("<blockquote>", "").replace("</blockquote>", ""))
         j = requests.post(url, data={"chat_id": chat, "text": clean,
                                      "message_thread_id": thread}, timeout=10).json()
         return bool(j.get("ok"))
@@ -204,7 +207,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
-    box = "" if aligned else (f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</pre>\n" if fresh >= 3 else "")
+    box = "" if aligned else (f"<blockquote>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</blockquote>\n" if fresh >= 3 else "")
     return (
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"

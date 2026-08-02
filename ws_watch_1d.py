@@ -156,7 +156,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
                 "<b>추세선 돌파가 먼저(델타지역 진입!)</b> → 그 후에야 선행스팬1·20일선·MACD·스토·RCI 돌파가 의미. 가로 매물대·채널·피보나치도 확인.\n")
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
-    box = "" if aligned else (f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</pre>\n" if fresh >= 3 else "")
+    box = "" if aligned else (f"<blockquote>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</blockquote>\n" if fresh >= 3 else "")
     return (
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
