@@ -155,7 +155,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     else:
         head = f"⏱ {kst(when):%Y-%m-%d} KST (일봉 마감)\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = "📏 <b>진입 전 추세선(X선·20일선 돌파)·가로 매물대·채널 확인 필수! (모든 조건에 우선)</b>\n"
+    top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
+                "<b>추세선 돌파가 먼저</b> → 그 후에야 선행스팬1·20일선·MACD·스토·RCI 돌파가 의미. 가로 매물대·채널·피보나치도 확인.\n")
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     box = "" if aligned else (f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</pre>\n" if fresh >= 3 else "")
     return (
@@ -166,6 +167,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"
         f"🛑 손절 {sl_txt} → 리스크 {risk_pct:.2f}%\n"
+        f"🏁 <b>익절 = 추세선 이탈 시</b> (수치 불가 — 직접 보고 판단)\n"
         f"━━━━━━━━━━━━━\n"
         f"{top_warn}"
         f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
