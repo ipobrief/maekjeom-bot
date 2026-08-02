@@ -131,8 +131,13 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     # 배지: 🎯 막돌파(타이밍) / ⚡ 급반전 / ⭐ 전조건 정렬 / 🔥 강신호
     badge = ""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
+    aligned = fresh >= 3 and ((e.get("r1_long") and e.get("r2_long")) if long_
+                              else (e.get("r1_short") and e.get("r2_short")))
     if fresh >= 3:
-        badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 3봉)\n"
+        if aligned:
+            badge += "⭐ <b>맥점 완성</b> — 막돌파 + 후행·전환 정렬\n"
+        else:
+            badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 3봉)\n"
     if e.get("fast3_long" if long_ else "fast3_short", False):
         badge += "⚡ <b>급반전 후보</b> — MACD·스토·RCI단 동시 점등\n"
     rem_n = sum(rem.values()); n_tot = len(rem)
@@ -153,7 +158,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
     top_warn = "📏 <b>진입 전 추세선(X선·20일선 돌파)·가로 매물대·채널 확인 필수! (모든 조건에 우선)</b>\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
-    box = f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</pre>\n" if fresh >= 3 else ""
+    box = "" if aligned else (f"<pre>🎯 막돌파 맥점  |  {'LONG' if long_ else 'SHORT'}  {fresh}/3</pre>\n" if fresh >= 3 else "")
     return (
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
