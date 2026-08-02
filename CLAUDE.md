@@ -5,20 +5,21 @@
 - IP: 161.33.150.142
 - 접속: ssh -i C:\Users\USER\.ssh\id_ed25519 ubuntu@161.33.150.142
 
-## 봇 구성 (2026-07-06부터 텔레그램 그룹 "맥점신호"(-1003964313330)의 토픽으로 발송)
-- ws_watch.py — 1시간봉 봇 (TELEGRAM_TOKEN, 토픽 thread=5)
-- ws_watch_1m.py — 15분봉 봇 (TELEGRAM_TOKEN_1M, 토픽 thread=2)
-- ws_watch_1d.py — 일봉 봇 (TELEGRAM_TOKEN_1D, 토픽 thread=7)
-- ws_watch_4h.py — 4시간봉 봇 (TELEGRAM_TOKEN_4H, 토픽 thread=218, @chris4h_bot)
+## 봇 구성 (2026-08-02 시간대 재편: 3m·15m·30m·1h. 4h·1d 중단)
+맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
+- ws_watch.py — 1시간봉 (TELEGRAM_TOKEN, 맥점토픽 thread=5)
+- ws_watch_1m.py — 15분봉 (TELEGRAM_TOKEN_1M, 맥점토픽 thread=2)
+- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H 재사용, 맥점토픽 TELEGRAM_THREAD_ID_30M=559)
+- ws_watch_3m.py — 3분봉 (chris15m_bot=TELEGRAM_TOKEN_1M 재사용, 맥점토픽 TELEGRAM_THREAD_ID_3M=558)
+- ~~ws_watch_4h.py / ws_watch_1d.py~~ — 2026-08-02 중단(서비스 disable, 토픽 삭제)
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
 
-### 막돌파신호 방 (2026-07-25 추가) — 🎯 막돌파 맥점 전용 별도 그룹
-- 새 텔레그램 그룹 "막돌파신호" chat_id=-1004425656249, 봇 초대·관리자.
-- 토픽: 15분봉=2 / 1시간봉=4 / 4시간봉=6 / 1일봉=8 / **3분봉=14**
-- env(/etc/maekjeom-bot.env): `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_1M=2/_1H=4/_4H=6/_1D=8/_3M=14`
-- 동작: 🎯 막돌파(fresh≥3)는 이 방으로만(15m/1h/4h/1d/3m, 같은 방향이어도). 기존 맥점신호 방은 막돌파 제외+방향전환시 1회.
-- 봇 토큰은 기존 재사용. env 없으면 기존 방으로 폴백.
-- **3분봉 봇(ws_watch_3m.py, 2026-07-27)은 막돌파신호 방 '전용'** — 일반 신호 미발송, 막돌파만. 토큰은 chris15m_bot(TELEGRAM_TOKEN_1M) 재사용.
+### 막돌파신호 방 (2026-07-25~) — 🎯 막돌파 전용 별도 그룹
+- 그룹 "막돌파신호" chat_id=-1004425656249.
+- 토픽(2026-08-02): 3분봉=14 / 15분봉=2 / 30분봉=85 / 1시간봉=4  (4시간봉=6·1일봉=8 삭제)
+- env: `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_3M=14/_1M=2/_30M=85/_1H=4`
+- 맥점방 토픽: 3분봉=558 / 15분봉=2 / 30분봉=559 / 1시간봉=5.
+- 동작: 막돌파(fresh≥3) + 후행·전환 정렬 → 맥점방 / 후행·전환 미완 → 막돌파방. 비막돌파는 발송 안 함.
 
 ### 다이버전스 발송 (2026-07-19 추가, 맥점과 별개 메시지)
 각 봉이 다이버전스 카드를 **기존 토픽에 별도 메시지**로 발송(카드 헤더 🔀로 맥점과 구분).
@@ -32,9 +33,9 @@
 두 봇은 systemd 서비스로 등록되어 있고 자동재시작(Restart=always)된다.
 - maekjeom-bot.service       — 1시간봉 (1h)
 - maekjeom-bot-15m.service   — 15분봉 (15m)
-- maekjeom-bot-1d.service    — 일봉 (1d)
-- maekjeom-bot-4h.service    — 4시간봉 (4h)
-- maekjeom-bot-3m.service    — 3분봉 (3m, 막돌파신호 방 전용)
+- maekjeom-bot-30m.service   — 30분봉 (30m, 2026-08-02 신설)
+- maekjeom-bot-3m.service    — 3분봉 (3m, 풀 라우팅)
+- ~~maekjeom-bot-4h / -1d~~  — 2026-08-02 중단(disable)
 
 수동 `nohup python3 ...` 로 띄우면 systemd 봇과 중복 실행되어 텔레그램 알림이
 겹친다. 반드시 systemctl 로 관리할 것.
@@ -46,17 +47,17 @@
 ## 업데이트 & 재시작 절차 (서버에서)
 cd ~/maekjeom-bot
 git pull origin main
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m
 
 ## 봇 상태 확인 (서버에서)
-systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m --no-pager
-ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_1m/_1d/_4h/_3m) 딱 5개
+systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m --no-pager
+ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_1m/_30m/_3m) 딱 4개
 sudo journalctl -u maekjeom-bot -f
 sudo journalctl -u maekjeom-bot-15m -f
 
 ## 중복 프로세스 정리 (수동 nohup 등으로 중복 떴을 때)
 pkill -9 -f ws_watch
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-1d maekjeom-bot-4h maekjeom-bot-3m
+sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m
 
 ## 코드 변경 → 배포 흐름
 1. 코드 수정 후 GitHub main 에 push
