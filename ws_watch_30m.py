@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""맥점 웹소켓 실시간 감시 — 3분봉. 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
-토큰 재사용: chris15m_bot(TELEGRAM_TOKEN_1M). 맥점방=TELEGRAM_THREAD_ID_3M, 막돌파방=TELEGRAM_BO_THREAD_3M.
-실행: python ws_watch_3m.py  [--no-confirm]
+"""맥점 웹소켓 실시간 감시 — 30분봉. 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
+토큰 재사용: chris4h_bot(TELEGRAM_TOKEN_4H). 맥점방=TELEGRAM_THREAD_ID_30M, 막돌파방=TELEGRAM_BO_THREAD_30M.
+실행: python ws_watch_30m.py  [--no-confirm]
 """
 import os
 import sys
@@ -19,9 +19,9 @@ import alert_bot as ab
 import divergence
 
 SYMBOL = "BTCUSDT"
-TF = "3m"
-HTF = ("5m", "15m", "30m")
-HTF_LABELS = ("5분", "15분", "30분")
+TF = "30m"
+HTF = ("1h", "2h", "4h")
+HTF_LABELS = ("1시간", "2시간", "4시간")
 KST = ZoneInfo("Asia/Seoul")
 
 CFG = {
@@ -31,24 +31,28 @@ CFG = {
 }
 
 WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
-HTF_REFRESH_SEC = 300
-RECOMPUTE_MIN_SEC = 30
-PROV_MIN_MINS_LEFT = 0.5
+HTF_REFRESH_SEC = 600
+RECOMPUTE_MIN_SEC = 120
+PROV_MIN_MINS_LEFT = 5
 
 
 def kst(ts):
     return ts.tz_convert(KST) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(KST)
 
 
+def _token():
+    return os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D")
+
+
 def tg_send(text):
-    token = os.environ.get("TELEGRAM_TOKEN_1M")
-    chat = os.environ.get("TELEGRAM_CHAT_ID_1M")
+    token = _token()
+    chat = os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D")
     if not token or not chat:
-        print("⚠️ 3m봇 텔레그램 미설정 (콘솔만).")
+        print("⚠️ 30m봇 텔레그램 미설정 (콘솔만).")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat, "text": ab.tg_html(text), "parse_mode": "HTML"}
-    thread = os.environ.get("TELEGRAM_THREAD_ID_3M")   # 맥점방 3분봉 토픽
+    thread = os.environ.get("TELEGRAM_THREAD_ID_30M")   # 맥점방 30분봉 토픽
     if thread:
         payload["message_thread_id"] = thread
     try:
@@ -61,7 +65,7 @@ def tg_send(text):
             pl["message_thread_id"] = thread
         return bool(requests.post(url, data=pl, timeout=10).json().get("ok"))
     except Exception as e:
-        print("❌ 텔레그램(3m) 오류:", e)
+        print("❌ 텔레그램(30m) 오류:", e)
         return False
 
 
@@ -71,13 +75,12 @@ def emit(text):
 
 
 def bo_ready():
-    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_3M"))
+    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_30M"))
 
 def emit_breakout(text):
-    print("🎯[막돌파방-3m]", text[:50])
-    return ab.tg_send_room(text, os.environ.get("TELEGRAM_TOKEN_1M"),
-                           os.environ.get("TELEGRAM_CHAT_ID_BO"),
-                           os.environ.get("TELEGRAM_BO_THREAD_3M"))
+    print("🎯[막돌파방-30m]", text[:50])
+    return ab.tg_send_room(text, _token(), os.environ.get("TELEGRAM_CHAT_ID_BO"),
+                           os.environ.get("TELEGRAM_BO_THREAD_30M"))
 
 
 def fmt_checks(checks):
@@ -120,7 +123,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
                 "<b>추세선 돌파가 먼저</b> → 그 후에야 선행스팬1·20일선·MACD·스토·RCI 돌파가 의미. 가로 매물대·채널·피보나치도 확인.\n")
     if provisional:
-        left = f"마감 {mins_left:.0f}분 전" if (mins_left is not None and mins_left >= 1) else "마감 임박"
+        left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
@@ -210,18 +213,17 @@ def handle_tick(st, k):
                     emit(fmt_signal(e, when, provisional=False))
                     st.last_dir = d; st.sent_key = (d, when)
                 else:
-                    print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: 맥점방 억제")
+                    print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 맥점방 억제")
             elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False))
                 st.sent_bo = (d, when); st.bo_last_dir = d
             else:
-                print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
+                print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
         else:
-            print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: {(d and '막돌파아님') or '신호없음'}")
-        divergence.check(st.df0, SYMBOL, TF,
-                         os.environ.get("TELEGRAM_TOKEN_1M"),
-                         os.environ.get("TELEGRAM_CHAT_ID_1M"),
-                         os.environ.get("TELEGRAM_THREAD_ID_3M"), st.sent_div)
+            print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: {(d and '막돌파아님') or '신호없음'}")
+        divergence.check(st.df0, SYMBOL, TF, _token(),
+                         os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
+                         os.environ.get("TELEGRAM_THREAD_ID_30M"), st.sent_div)
         st.alerted_bar = None
         st.alerted_dirs = set()
         return
