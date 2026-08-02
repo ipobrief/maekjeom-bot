@@ -109,8 +109,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
             badge += "⭐ <b>맥점 완성</b> — 막돌파 + 후행·전환 정렬\n"
         else:
             badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 2봉)\n"
-    if e.get("fast3_long" if long_ else "fast3_short", False):
-        badge += "⚡ <b>급반전 후보</b> — MACD·스토·RCI단 동시 점등\n"
     rem_n = sum(rem.values()); n_tot = len(rem)
     if rem_n == n_tot:
         badge += f"⭐ <b>전조건 정렬</b>(나머지 {rem_n}/{n_tot}, 그린26 포함) — 추세 진행 중, 추격 주의\n"
