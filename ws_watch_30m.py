@@ -126,7 +126,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned_bias else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
-    box = "" if aligned else ((("🟩🟩🟩" if long_ else "🟥🟥🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩🟩🟩" if long_ else "🟥🟥🟥") + "\n") if fresh >= 3 else "")
+    box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned_bias else '⚠️역추세—신중'}\n"
