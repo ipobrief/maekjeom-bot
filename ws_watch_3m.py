@@ -87,7 +87,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
-    badge = f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 3봉)\n"
+    badge = f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 2봉)\n"
     if e.get("fast3_long" if long_ else "fast3_short", False):
         badge += "⚡ <b>급반전 후보</b> — MACD·스토·RCI단 동시 점등\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"

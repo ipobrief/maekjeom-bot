@@ -153,7 +153,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     #   스토 %K(필수): 50선 상향돌파
     #   RCI(택일): RCI단9 0선 상향돌파 또는 RCI그린26 0선 상향돌파
     #   → fresh==3(세 그룹 모두)이 막돌파. 숏은 거울(DC/하향).
-    W = cfg.get("fresh_bars", 3)
+    W = cfg.get("fresh_bars", 2)   # 2026-07-27 3→2: 더 엄격한 '동시 돌파'(2봉 이내)
     def _fresh(ev):
         return ev.astype(int).rolling(W, min_periods=1).max()
     macd_up_trig = _fresh(((macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1)))   # GC 발생
