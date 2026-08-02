@@ -231,24 +231,26 @@ def handle_tick(st, k):
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
         d = e["direction"]
-        # 🎯 막돌파는 막돌파신호 방으로(같은 방향이어도), 그 외는 기존 방(방향전환시 1회).
+        # 막돌파(fresh>=3)만 발송: 후행·전환 정렬시 맥점방, 아니면 막돌파방. 비막돌파는 발송 안 함.
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-        if d and getattr(handle_tick, "send_confirm", True):
-            if breakout and bo_ready():
-                if d != st.bo_last_dir and st.sent_bo != (d, when):
-                    emit_breakout(fmt_signal(e, when, provisional=False))
-                    st.sent_bo = (d, when)
-                    st.bo_last_dir = d
+        aligned = breakout and ((e["r1_long"] and e["r2_long"]) if d == "LONG"
+                                else (e["r1_short"] and e["r2_short"]))
+        if d and breakout and getattr(handle_tick, "send_confirm", True):
+            if aligned:                              # 맥점방(완성형)
+                if not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
+                    emit(fmt_signal(e, when, provisional=False))
                     st.last_dir = d
-            elif not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
-                emit(fmt_signal(e, when, provisional=False))
-                st.last_dir = d
-                st.sent_key = (d, when)
+                    st.sent_key = (d, when)
+                else:
+                    print(f"[ws-4h] {kst(when):%m-%d} 마감: 맥점방 억제")
+            elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):   # 막돌파방
+                emit_breakout(fmt_signal(e, when, provisional=False))
+                st.sent_bo = (d, when)
+                st.bo_last_dir = d
             else:
-                why = "방향전환 없음(억제중)" if st.same_dir_blocked(d, when) else "중복"
-                print(f"[ws-4h] {kst(when):%m-%d} 마감: {why}")
+                print(f"[ws-4h] {kst(when):%m-%d} 마감: 막돌파방 억제")
         else:
-            print(f"[ws-4h] {kst(when):%m-%d} 마감: {d or '신호없음'}")
+            print(f"[ws-4h] {kst(when):%m-%d} 마감: {(d and '막돌파아님') or '신호없음'}")
         divergence.check(st.df4h, SYMBOL, TF,
                          os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D"),
                          os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
@@ -270,11 +272,13 @@ def handle_tick(st, k):
     if not d:
         return
     breakout = e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
-    route_bo = breakout and bo_ready()      # 🎯 막돌파 → 막돌파신호 방(같은 방향이어도)
-    if route_bo:
-        gate = d != st.bo_last_dir and st.sent_bo != (d, when)
+    if not breakout:              # 막돌파 아니면 발송 안 함(잠정 포함)
+        return
+    aligned = (e["r1_long"] and e["r2_long"]) if d == "LONG" else (e["r1_short"] and e["r2_short"])
+    if aligned:
+        gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)   # 맥점방
     else:
-        gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)
+        gate = d != st.bo_last_dir and st.sent_bo != (d, when)                 # 막돌파방
     if not gate:
         return
     must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
@@ -287,15 +291,15 @@ def handle_tick(st, k):
         st.alerted_dirs.add(d)
         return
     card = fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d)
-    if route_bo:
-        emit_breakout(card)
-        st.sent_bo = (d, when)
-        st.bo_last_dir = d
-    else:
+    if aligned:                   # 맥점방
         emit(card)
         st.alerted_dirs.add(d)
         st.sent_key = (d, when)
-    st.last_dir = d
+        st.last_dir = d
+    else:                         # 막돌파방
+        emit_breakout(card)
+        st.sent_bo = (d, when)
+        st.bo_last_dir = d
 
 
 async def run(send_confirm=True):

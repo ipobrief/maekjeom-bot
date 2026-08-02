@@ -289,6 +289,8 @@ def explain(sig_row, cfg) -> dict:
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
         "fast3_long": bool(r.get("fast3_long", False)), "fast3_short": bool(r.get("fast3_short", False)),
+        "r1_long": bool(r.get("LR1", False)), "r2_long": bool(r.get("LR2", False)),   # 후행(1)·전환(2)
+        "r1_short": bool(r.get("SR1", False)), "r2_short": bool(r.get("SR2", False)),
         "senkou1": r["senkou1"],
         "swing_low": r.get("swing_low", float("nan")),
         "swing_high": r.get("swing_high", float("nan")),
