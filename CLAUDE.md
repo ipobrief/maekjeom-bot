@@ -9,8 +9,8 @@
 맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
 - ws_watch.py — 1시간봉 (TELEGRAM_TOKEN, 맥점토픽 thread=5)
 - ws_watch_1m.py — 15분봉 (TELEGRAM_TOKEN_1M, 맥점토픽 thread=2)
-- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H 재사용, 맥점토픽 TELEGRAM_THREAD_ID_30M=559)
-- ws_watch_3m.py — 3분봉 (chris15m_bot=TELEGRAM_TOKEN_1M 재사용, 맥점토픽 TELEGRAM_THREAD_ID_3M=558)
+- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → BotFather에서 chris30m_bot로 개명, 맥점토픽 THREAD_ID_30M=559)
+- ws_watch_3m.py — 3분봉 (chris1d_bot=TELEGRAM_TOKEN_1D → BotFather에서 chris3m_bot로 개명. 2026-08-02 chris15m_bot에서 교체: 15m와 봇이름 분리. 맥점토픽 THREAD_ID_3M=558)
 - ~~ws_watch_4h.py / ws_watch_1d.py~~ — 2026-08-02 중단(서비스 disable, 토픽 삭제)
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
 
