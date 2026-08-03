@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """맥점 웹소켓 실시간 감시 — 3분봉. 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
-토큰 재사용: chris15m_bot(TELEGRAM_TOKEN_1M). 맥점방=TELEGRAM_THREAD_ID_3M, 막돌파방=TELEGRAM_BO_THREAD_3M.
+토큰: chris1d_bot(TELEGRAM_TOKEN_1D, →BotFather에서 chris3m_bot로 개명). 맥점방=TELEGRAM_THREAD_ID_3M, 막돌파방=TELEGRAM_BO_THREAD_3M.
 실행: python ws_watch_3m.py  [--no-confirm]
 """
 import os
@@ -41,7 +41,7 @@ def kst(ts):
 
 
 def tg_send(text):
-    token = os.environ.get("TELEGRAM_TOKEN_1M")
+    token = os.environ.get("TELEGRAM_TOKEN_1D")
     chat = os.environ.get("TELEGRAM_CHAT_ID_1M")
     if not token or not chat:
         print("⚠️ 3m봇 텔레그램 미설정 (콘솔만).")
@@ -75,7 +75,7 @@ def bo_ready():
 
 def emit_breakout(text):
     print("🎯[막돌파방-3m]", text[:50])
-    return ab.tg_send_room(text, os.environ.get("TELEGRAM_TOKEN_1M"),
+    return ab.tg_send_room(text, os.environ.get("TELEGRAM_TOKEN_1D"),
                            os.environ.get("TELEGRAM_CHAT_ID_BO"),
                            os.environ.get("TELEGRAM_BO_THREAD_3M"))
 
@@ -217,7 +217,7 @@ def handle_tick(st, k):
         else:
             print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: {(d and '막돌파아님') or '신호없음'}")
         divergence.check(st.df0, SYMBOL, TF,
-                         os.environ.get("TELEGRAM_TOKEN_1M"),
+                         os.environ.get("TELEGRAM_TOKEN_1D"),
                          os.environ.get("TELEGRAM_CHAT_ID_1M"),
                          os.environ.get("TELEGRAM_THREAD_ID_3M"), st.sent_div)
         st.alerted_bar = None
