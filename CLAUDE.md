@@ -5,20 +5,20 @@
 - IP: 161.33.150.142
 - 접속: ssh -i C:\Users\USER\.ssh\id_ed25519 ubuntu@161.33.150.142
 
-## 봇 구성 (2026-08-02 시간대 재편: 3m·15m·30m·1h. 4h·1d 중단)
+## 봇 구성 (2026-08-04 시간대: 3m·5m·30m·1h. 15m·4h·1d 중단)
 맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
-- ws_watch.py — 1시간봉 (TELEGRAM_TOKEN, 맥점토픽 thread=5)
-- ws_watch_1m.py — 15분봉 (TELEGRAM_TOKEN_1M, 맥점토픽 thread=2)
-- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → BotFather에서 chris30m_bot로 개명, 맥점토픽 THREAD_ID_30M=559)
-- ws_watch_3m.py — 3분봉 (chris1d_bot=TELEGRAM_TOKEN_1D → BotFather에서 chris3m_bot로 개명. 2026-08-02 chris15m_bot에서 교체: 15m와 봇이름 분리. 맥점토픽 THREAD_ID_3M=558)
-- ~~ws_watch_4h.py / ws_watch_1d.py~~ — 2026-08-02 중단(서비스 disable, 토픽 삭제)
+- ws_watch.py — 1시간봉 (TELEGRAM_TOKEN, chris1H_bot, 맥점토픽 thread=5)
+- ws_watch_5m.py — 5분봉 (chris15m_bot=TELEGRAM_TOKEN_1M → BotFather에서 chris5m_bot로 개명. 2026-08-04 15분봉 대체. 맥점토픽 THREAD_ID_5M=574)
+- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → chris30m_bot 개명, 맥점토픽 THREAD_ID_30M=559)
+- ws_watch_3m.py — 3분봉 (chris1d_bot=TELEGRAM_TOKEN_1D → chris3m_bot 개명, 맥점토픽 THREAD_ID_3M=558)
+- ~~ws_watch_1m.py(15m) / ws_watch_4h.py / ws_watch_1d.py~~ — 중단(서비스 disable, 토픽 삭제)
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
 
 ### 막돌파신호 방 (2026-07-25~) — 🎯 막돌파 전용 별도 그룹
 - 그룹 "막돌파신호" chat_id=-1004425656249.
-- 토픽(2026-08-02): 3분봉=14 / 15분봉=2 / 30분봉=85 / 1시간봉=4  (4시간봉=6·1일봉=8 삭제)
-- env: `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_3M=14/_1M=2/_30M=85/_1H=4`
-- 맥점방 토픽: 3분봉=558 / 15분봉=2 / 30분봉=559 / 1시간봉=5.
+- 토픽(2026-08-04): 3분봉=14 / 5분봉=132 / 30분봉=85 / 1시간봉=4  (15분봉=2·4시간봉·1일봉 삭제)
+- env: `TELEGRAM_CHAT_ID_BO=-1004425656249` + `TELEGRAM_BO_THREAD_3M=14/_5M=132/_30M=85/_1H=4`
+- 맥점방 토픽: 3분봉=558 / 5분봉=574 / 30분봉=559 / 1시간봉=5.
 - 동작: 막돌파(fresh≥3) + 후행·전환 정렬 → 맥점방 / 후행·전환 미완 → 막돌파방. 비막돌파는 발송 안 함.
 
 ### 다이버전스 발송 (2026-07-19 추가, 맥점과 별개 메시지)
@@ -32,7 +32,7 @@
 ## ⚠️ 봇은 systemd로 관리됨 (nohup 쓰지 말 것)
 두 봇은 systemd 서비스로 등록되어 있고 자동재시작(Restart=always)된다.
 - maekjeom-bot.service       — 1시간봉 (1h)
-- maekjeom-bot-15m.service   — 15분봉 (15m)
+- maekjeom-bot-5m.service    — 5분봉 (5m, 2026-08-04 15분봉 대체)
 - maekjeom-bot-30m.service   — 30분봉 (30m, 2026-08-02 신설)
 - maekjeom-bot-3m.service    — 3분봉 (3m, 풀 라우팅)
 - ~~maekjeom-bot-4h / -1d~~  — 2026-08-02 중단(disable)
@@ -47,17 +47,17 @@
 ## 업데이트 & 재시작 절차 (서버에서)
 cd ~/maekjeom-bot
 git pull origin main
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m
+sudo systemctl restart maekjeom-bot maekjeom-bot-5m maekjeom-bot-30m maekjeom-bot-3m
 
 ## 봇 상태 확인 (서버에서)
-systemctl status maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m --no-pager
-ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_1m/_30m/_3m) 딱 4개
+systemctl status maekjeom-bot maekjeom-bot-5m maekjeom-bot-30m maekjeom-bot-3m --no-pager
+ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_5m/_30m/_3m) 딱 4개
 sudo journalctl -u maekjeom-bot -f
-sudo journalctl -u maekjeom-bot-15m -f
+sudo journalctl -u maekjeom-bot-5m -f
 
 ## 중복 프로세스 정리 (수동 nohup 등으로 중복 떴을 때)
 pkill -9 -f ws_watch
-sudo systemctl restart maekjeom-bot maekjeom-bot-15m maekjeom-bot-30m maekjeom-bot-3m
+sudo systemctl restart maekjeom-bot maekjeom-bot-5m maekjeom-bot-30m maekjeom-bot-3m
 
 ## 코드 변경 → 배포 흐름
 1. 코드 수정 후 GitHub main 에 push
