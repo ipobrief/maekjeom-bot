@@ -12,6 +12,7 @@ concurrency:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5          # SSH가 멈춰도 5분 내 종료(예전엔 15분 hang→취소)
     steps:
       - name: 서버·봇 상태 점검 후 이상 시 텔레그램 알림
         env:
@@ -29,20 +30,28 @@ jobs:
               -d chat_id="${TELEGRAM_CHAT_ID}" -d text="$1" >/dev/null
           }
 
+          # SSH가 세션 도중 멈추면 15분씩 hang → 취소되던 문제 방지:
+          # 짧은 타임아웃(timeout+ServerAlive) + 3회 재시도(일시적 지연은 오탐 안 냄)
           set +e
-          OUT=$(ssh -i ~/.ssh/id_monitor -o StrictHostKeyChecking=no \
-                    -o ConnectTimeout=20 -o BatchMode=yes \
-                    ubuntu@"${MONITOR_HOST}" 2>/dev/null)
-          RC=$?
+          OUT=""; RC=1
+          for i in 1 2 3; do
+            OUT=$(timeout 40 ssh -i ~/.ssh/id_monitor -o StrictHostKeyChecking=no \
+                      -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 \
+                      -o BatchMode=yes ubuntu@"${MONITOR_HOST}" 2>/dev/null)
+            RC=$?
+            [ $RC -eq 0 ] && break
+            echo "시도 $i 실패(rc=$RC), 10초 후 재시도"
+            sleep 10
+          done
           set -e
           echo "rc=$RC out=$OUT"
 
           if [ $RC -ne 0 ]; then
-            send "🔴 [맥점봇 감시] 서버 응답 없음 — Oracle VM 다운/네트워크 장애 의심 (${MONITOR_HOST}). 점검 필요."
+            send "🔴 [맥점봇 감시] 서버 응답 없음(3회 재시도 실패) — Oracle VM 다운/네트워크 장애 의심 (${MONITOR_HOST}). 점검 필요."
           elif [ "${OUT#OK}" != "$OUT" ]; then
             # OUT 이 OK 로 시작 → 정상
             if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              send "✅ [맥점봇 감시] 정상 작동 중 — 1h·15m 봇 모두 active (수동 점검)."
+              send "✅ [맥점봇 감시] 정상 작동 중 — 3m·5m·30m·1h 봇 모두 active (수동 점검)."
             fi
           else
             send "🔴 [맥점봇 감시] 봇 꺼짐 — ${OUT} (서버는 살아있음, systemd 재시작 실패 의심)."
