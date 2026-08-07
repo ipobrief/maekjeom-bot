@@ -201,7 +201,7 @@ def handle_tick(st, k):
         st.maybe_refresh_htf()
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
-        d = e["direction"]
+        d = e.get("direction_active", e["direction"])   # 확정 막돌파: 에지 아닌 레벨+fresh기준(2026-08-07)
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         aligned = breakout and ((e["r1_long"] and e["r2_long"]) if d == "LONG"
                                 else (e["r1_short"] and e["r2_short"]))

@@ -250,7 +250,7 @@ def handle_tick(st, k):
         st.maybe_refresh_htf()
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
-        d = e["direction"]
+        d = e.get("direction_active", e["direction"])   # 확정 막돌파: 에지 아닌 레벨+fresh기준(2026-08-07)
         # 막돌파(fresh>=3)만 발송: 후행·전환 정렬시 맥점방, 아니면 막돌파방. 비막돌파는 발송 안 함.
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         aligned = breakout and ((e["r1_long"] and e["r2_long"]) if d == "LONG"
