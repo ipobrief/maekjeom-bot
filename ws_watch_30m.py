@@ -17,9 +17,14 @@ import data
 import strategy
 import alert_bot as ab
 import divergence
+import indicators as ind
 
 SYMBOL = "BTCUSDT"
 TF = "30m"
+
+# 스토캐스틱 과열/침체 임계 (%K, 키움식 12/5/5)
+STOCH_HOT = 80    # 과열 진입 (≥80) → 곧 하락 조정 가능성 → 하위봉 숏 유리
+STOCH_COLD = 20   # 침체 진입 (≤20) → 곧 반등 가능성 → 하위봉 롱 유리
 HTF = ("1h", "2h", "4h")
 HTF_LABELS = ("1시간", "2시간", "4시간")
 KST = ZoneInfo("Asia/Seoul")
@@ -144,6 +149,35 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     )
 
 
+def stoch_zone_of(k):
+    """스토 %K → 존 판정. 'hot'(과열)/'cold'(침체)/'neutral'."""
+    if k is None or pd.isna(k):
+        return "neutral"
+    return "hot" if k >= STOCH_HOT else ("cold" if k <= STOCH_COLD else "neutral")
+
+
+def fmt_stoch_regime(zone, k, when):
+    """30분봉 스토 과열/침체 진입 알림 (상위TF 환경 필터)."""
+    head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)"
+    if zone == "hot":
+        return (
+            f"🥵 <b>30분봉 스토캐스틱 과열</b> (%K {k:.0f} ≥ {STOCH_HOT})\n"
+            f"━━━━━━━━━━━━━\n"
+            f"상위 30분봉이 <b>과열권</b> 진입 → 곧 하락 조정 가능성 ↑\n"
+            f"👉 <b>3·5분봉에서 숏(SHORT) 신호가 나오면 숏 진입 유리 구간.</b>\n"
+            f"{head}\n"
+            f"<i>환경 참고용 — 실제 진입은 하위봉 맥점/막돌파 신호로 확인. 판단·책임은 본인.</i>"
+        )
+    return (
+        f"🥶 <b>30분봉 스토캐스틱 침체</b> (%K {k:.0f} ≤ {STOCH_COLD})\n"
+        f"━━━━━━━━━━━━━\n"
+        f"상위 30분봉이 <b>침체권</b> 진입 → 곧 반등 가능성 ↑\n"
+        f"👉 <b>3·5분봉에서 롱(LONG) 신호가 나오면 롱 진입 유리 구간.</b>\n"
+        f"{head}\n"
+        f"<i>환경 참고용 — 실제 진입은 하위봉 맥점/막돌파 신호로 확인. 판단·책임은 본인.</i>"
+    )
+
+
 def enrich(row, sig):
     return strategy.explain(row, CFG)
 
@@ -161,6 +195,7 @@ class LiveState:
         self.bo_last_dir = None
         self.sent_div = set()
         self.last_recompute = 0.0
+        self.stoch_zone = None   # 스토 과열/침체 존 상태(진입 시 1회 발송용)
 
     def same_dir_blocked(self, d, when):
         return d == self.last_dir
@@ -168,6 +203,12 @@ class LiveState:
     def load_base(self):
         self.df0 = data.get_history(SYMBOL, TF, bars=600)
         self._load_htf()
+        # 시작 시점의 스토 존을 기록해 두어 기존 상태로는 재알림하지 않음(신규 진입만 발송)
+        try:
+            k0, _ = ind.stochastic(self.df0)
+            self.stoch_zone = stoch_zone_of(float(k0.iloc[-1]))
+        except Exception:
+            self.stoch_zone = None
 
     def _load_htf(self):
         self.dfA = data.get_history(SYMBOL, HTF[0], bars=400)
@@ -222,6 +263,16 @@ def handle_tick(st, k):
         divergence.check(st.df0, SYMBOL, TF, _token(),
                          os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
                          os.environ.get("TELEGRAM_THREAD_ID_30M"), st.sent_div)
+        # ── 30분봉 스토캐스틱 과열/침체 진입 알림 (진입 시 1회, 존 이탈 전까지 억제) ──
+        k_now = float(sig["k"].iloc[-1]) if not pd.isna(sig["k"].iloc[-1]) else None
+        zone = stoch_zone_of(k_now)
+        prev_zone = st.stoch_zone
+        st.stoch_zone = zone
+        if getattr(handle_tick, "send_confirm", True):
+            if zone == "hot" and prev_zone != "hot":
+                emit(fmt_stoch_regime("hot", k_now, when))
+            elif zone == "cold" and prev_zone != "cold":
+                emit(fmt_stoch_regime("cold", k_now, when))
         st.alerted_bar = None
         st.alerted_dirs = set()
         return
