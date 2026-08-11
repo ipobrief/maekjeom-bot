@@ -207,11 +207,11 @@ def handle_tick(st, k):
                                 else (e["r1_short"] and e["r2_short"]))
         if d and breakout and getattr(handle_tick, "send_confirm", True):
             if aligned:
-                if not st.same_dir_blocked(d, when) and st.sent_key != (d, when):
+                if st.sent_key != (d, when):
                     emit(fmt_signal(e, when, provisional=False))
                     st.last_dir = d; st.sent_key = (d, when)
                 else:
-                    print(f"[ws-5m] {kst(when):%m-%d %H:%M} 마감: 맥점방 억제")
+                    print(f"[ws-5m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
             elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False))
                 st.sent_bo = (d, when); st.bo_last_dir = d
@@ -242,7 +242,7 @@ def handle_tick(st, k):
         return
     aligned = (e["r1_long"] and e["r2_long"]) if d == "LONG" else (e["r1_short"] and e["r2_short"])
     if aligned:
-        gate = d not in st.alerted_dirs and not st.same_dir_blocked(d, when)
+        gate = d not in st.alerted_dirs
     else:
         gate = d != st.bo_last_dir and st.sent_bo != (d, when)
     if not gate:
