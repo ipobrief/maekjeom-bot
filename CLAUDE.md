@@ -29,6 +29,21 @@
 - 경로: ~/maekjeom-bot
 - 파이썬은 `python3` (이 서버엔 `python` 명령 없음 — nohup python 하면 Exit 127)
 
+## 🥇 XAU(금 무기한선물) 봇 — 2026-08-12 추가
+BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용. 코드는 BTC와 같은 파일 공유,
+`SYMBOL`·`WS_BASE` env override로 종목만 교체(별도 프로세스 → dedup 상태 격리, BTC 무영향).
+- **데이터**: `fapi.binance.com` XAUUSDT klines(선물). **웹소켓은 선물 스트림 `wss://fstream.binance.com`**
+  (금은 현물 페어가 없어 BTC의 현물 스트림 못 씀 → `WS_BASE` env로 분기).
+- **발송처**: 기존 그룹 2개 재사용, XAU 전용 토픽 신설(봇 토큰·chat_id 재사용).
+  - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / 30분봉=622 / 1시간봉=623
+  - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / 30분봉=207 / 1시간봉=208
+- **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-30m/-xau-1h` (각 유닛에 `Environment=SYMBOL=XAUUSDT`,
+  `WS_BASE=wss://fstream.binance.com`, XAU 맥점/막돌파 thread override). env 파일(`/etc/maekjeom-bot.env`)은 공유.
+- **재시작**: `sudo systemctl restart maekjeom-bot-xau-3m maekjeom-bot-xau-5m maekjeom-bot-xau-30m maekjeom-bot-xau-1h`
+- **상태**: `systemctl is-active maekjeom-bot-xau-{3m,5m,30m,1h}` / `ps aux|grep ws_watch` → BTC4+XAU4 = **8개**
+- ⚠️ **금 휴장 주의**: 금 무기한은 주말·연말 등 underlying 휴장 때 거래정지/데이터 갭 가능(BTC 24/7과 다름).
+  주말 첫 운영 시 봉 연속성·오작동 관찰 필요.
+
 ## ⚠️ 봇은 systemd로 관리됨 (nohup 쓰지 말 것)
 두 봇은 systemd 서비스로 등록되어 있고 자동재시작(Restart=always)된다.
 - maekjeom-bot.service       — 1시간봉 (1h)
@@ -51,7 +66,7 @@ sudo systemctl restart maekjeom-bot maekjeom-bot-5m maekjeom-bot-30m maekjeom-bo
 
 ## 봇 상태 확인 (서버에서)
 systemctl status maekjeom-bot maekjeom-bot-5m maekjeom-bot-30m maekjeom-bot-3m --no-pager
-ps aux | grep ws_watch          # 정상이면 ws_watch(.py/_5m/_30m/_3m) 딱 4개
+ps aux | grep ws_watch          # BTC 4개 + XAU 4개 = 정상이면 8개 (2026-08-12 XAU 추가 전엔 4개)
 sudo journalctl -u maekjeom-bot -f
 sudo journalctl -u maekjeom-bot-5m -f
 
