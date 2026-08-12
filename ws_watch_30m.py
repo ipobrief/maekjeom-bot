@@ -19,7 +19,7 @@ import alert_bot as ab
 import divergence
 import indicators as ind
 
-SYMBOL = "BTCUSDT"
+SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등)
 TF = "30m"
 
 # 스토캐스틱 과열/침체 임계 (%K, 키움식 12/5/5)
@@ -35,7 +35,8 @@ CFG = {
     "atr_stop_mult": 2.0, "limit_offset": 0.0003, "trend_lookback": 100,
 }
 
-WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
+WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")  # XAU=wss://fstream.binance.com
+WS_URL = f"{WS_BASE}/ws/{SYMBOL.lower()}@kline_{TF}"
 HTF_REFRESH_SEC = 600
 RECOMPUTE_MIN_SEC = 120
 PROV_MIN_MINS_LEFT = 5

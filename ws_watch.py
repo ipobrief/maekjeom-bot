@@ -32,7 +32,9 @@ import strategy
 import alert_bot as ab
 import divergence
 
-WS_URL = f"wss://stream.binance.com:9443/ws/{ab.SYMBOL.lower()}@kline_{ab.TF}"
+# WS_BASE: 현물 스트림(BTC 기본) 또는 선물 스트림(XAU 등, 현물 페어 없음 → wss://fstream.binance.com)
+WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")
+WS_URL = f"{WS_BASE}/ws/{ab.SYMBOL.lower()}@kline_{ab.TF}"
 
 # 막돌파신호 방(별도 그룹) — 🎯 막돌파 맥점만 이쪽으로. 미설정이면 기존 방으로 폴백.
 def bo_ready():

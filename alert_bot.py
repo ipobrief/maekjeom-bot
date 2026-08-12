@@ -55,7 +55,7 @@ CFG = {
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
 }
-SYMBOL = "BTCUSDT"
+SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등). 미설정=BTC
 TF = "1h"          # 주력 타임프레임 (1시간봉이 백테스트상 구조적으로 우월)
 # 상위 타임프레임(방향 필터)과 표시 라벨 — 주력 TF에 맞춰 조정
 HTF = ("2h", "4h", "1d")

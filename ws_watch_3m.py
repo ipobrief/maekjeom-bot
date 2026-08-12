@@ -18,7 +18,7 @@ import strategy
 import alert_bot as ab
 import divergence
 
-SYMBOL = "BTCUSDT"
+SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등)
 TF = "3m"
 HTF = ("5m", "15m", "30m")
 HTF_LABELS = ("5분", "15분", "30분")
@@ -30,7 +30,8 @@ CFG = {
     "atr_stop_mult": 2.0, "limit_offset": 0.0003, "trend_lookback": 100,
 }
 
-WS_URL = f"wss://stream.binance.com:9443/ws/{SYMBOL.lower()}@kline_{TF}"
+WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")  # XAU=wss://fstream.binance.com
+WS_URL = f"{WS_BASE}/ws/{SYMBOL.lower()}@kline_{TF}"
 HTF_REFRESH_SEC = 300
 RECOMPUTE_MIN_SEC = 30
 PROV_MIN_MINS_LEFT = 0.5
