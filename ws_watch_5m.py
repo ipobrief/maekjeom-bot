@@ -294,6 +294,10 @@ async def run(send_confirm=True):
 if __name__ == "__main__":
     send_confirm = "--no-confirm" not in sys.argv
     try:
-        asyncio.run(run(send_confirm))
+        if os.environ.get("FEED_MODE") == "poll":   # 선물 WS 차단 환경(XAU) → REST 폴링
+            import poll_feed
+            poll_feed.run_poll(sys.modules[__name__], send_confirm)
+        else:
+            asyncio.run(run(send_confirm))
     except KeyboardInterrupt:
         print("\n종료")
