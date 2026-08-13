@@ -32,13 +32,16 @@
 ## 🥇 XAU(금 무기한선물) 봇 — 2026-08-12 추가
 BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용. 코드는 BTC와 같은 파일 공유,
 `SYMBOL`·`WS_BASE` env override로 종목만 교체(별도 프로세스 → dedup 상태 격리, BTC 무영향).
-- **데이터**: `fapi.binance.com` XAUUSDT klines(선물). **웹소켓은 선물 스트림 `wss://fstream.binance.com`**
-  (금은 현물 페어가 없어 BTC의 현물 스트림 못 씀 → `WS_BASE` env로 분기).
+- **데이터**: `fapi.binance.com` XAUUSDT klines(선물, REST). ⚠️**선물 웹소켓(fstream) 이 서버 IP에서 차단**
+  — 연결은 되나 kline 데이터 미전송(선물 BTC조차 무수신 → 유동성 아닌 IP제한. 현물 WS·선물 REST는 정상).
+  그래서 XAU는 **웹소켓 대신 REST 폴링**(`poll_feed.py`, env `FEED_MODE=poll`, 15s 간격)으로 fapi klines를 받아
+  `handle_tick`에 공급(라우팅·카드·중복억제 로직 동일 재사용). BTC는 현물 WS 정상이라 그대로.
+  ※ `WS_BASE` env는 폴링 모드에선 무시됨(유닛에 남아있어도 무해). XAU는 과거봉+형성봉 모두 선물(fapi)이라 순수 선물 신호.
 - **발송처**: 기존 그룹 2개 재사용, XAU 전용 토픽 신설(봇 토큰·chat_id 재사용).
   - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / 30분봉=622 / 1시간봉=623
   - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / 30분봉=207 / 1시간봉=208
 - **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-30m/-xau-1h` (각 유닛에 `Environment=SYMBOL=XAUUSDT`,
-  `WS_BASE=wss://fstream.binance.com`, XAU 맥점/막돌파 thread override). env 파일(`/etc/maekjeom-bot.env`)은 공유.
+  `FEED_MODE=poll`, XAU 맥점/막돌파 thread override). env 파일(`/etc/maekjeom-bot.env`)은 공유.
 - **재시작**: `sudo systemctl restart maekjeom-bot-xau-3m maekjeom-bot-xau-5m maekjeom-bot-xau-30m maekjeom-bot-xau-1h`
 - **상태**: `systemctl is-active maekjeom-bot-xau-{3m,5m,30m,1h}` / `ps aux|grep ws_watch` → BTC4+XAU4 = **8개**
 - ⚠️ **금 휴장 주의**: 금 무기한은 주말·연말 등 underlying 휴장 때 거래정지/데이터 갭 가능(BTC 24/7과 다름).
