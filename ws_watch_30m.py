@@ -21,6 +21,8 @@ import indicators as ind
 
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등)
 TF = "30m"
+# 스토 환경알림 종목 라벨(BTC/XAU 구분 — 같은 봇계정 공유라 텍스트로 구분 필요)
+SYM_TAG = "XAU" if SYMBOL.upper().startswith("XAU") else ("BTC" if SYMBOL.upper().startswith("BTC") else SYMBOL.upper().replace("USDT", ""))
 
 # 스토캐스틱 과열/침체 임계 (%K, 키움식 12/5/5)
 STOCH_HOT = 80    # 과열 진입 (≥80) → 곧 하락 조정 가능성 → 하위봉 숏 유리
@@ -177,7 +179,7 @@ def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
         pv = ""
     if zone == "hot":
         return (
-            f"{pv}🥵 <b>30분봉 스토캐스틱 과열</b> (%K {k:.0f} ≥ {STOCH_HOT})\n"
+            f"{pv}🥵 <b>[{SYM_TAG}] 30분봉 스토캐스틱 과열</b> (%K {k:.0f} ≥ {STOCH_HOT})\n"
             f"━━━━━━━━━━━━━\n"
             f"상위 30분봉이 <b>과열권</b> 진입 → 곧 하락 조정 가능성 ↑\n"
             f"👉 <b>3·5분봉에서 숏(SHORT) 신호가 나오면 숏 진입 유리 구간.</b>\n"
@@ -185,7 +187,7 @@ def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
         )
     if zone == "cold":
         return (
-            f"{pv}🥶 <b>30분봉 스토캐스틱 침체</b> (%K {k:.0f} ≤ {STOCH_COLD})\n"
+            f"{pv}🥶 <b>[{SYM_TAG}] 30분봉 스토캐스틱 침체</b> (%K {k:.0f} ≤ {STOCH_COLD})\n"
             f"━━━━━━━━━━━━━\n"
             f"상위 30분봉이 <b>침체권</b> 진입 → 곧 반등 가능성 ↑\n"
             f"👉 <b>3·5분봉에서 롱(LONG) 신호가 나오면 롱 진입 유리 구간.</b>\n"
@@ -193,14 +195,14 @@ def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
         )
     if zone == "hot_clear":
         return (
-            f"{pv}🥵➡️😌 <b>30분봉 스토 과열 해소</b> (%K {k:.0f} < {STOCH_HOT})\n"
+            f"{pv}🥵➡️😌 <b>[{SYM_TAG}] 30분봉 스토 과열 해소</b> (%K {k:.0f} < {STOCH_HOT})\n"
             f"━━━━━━━━━━━━━\n"
             f"과열권 이탈 → 상단 과열 식음. 하락 조정이 실제 진행되는 국면일 수 있음.\n"
             f"👉 숏 관점이면 하위봉 흐름 확인하며 유지/진행, 롱은 성급한 저점매수 주의.\n"
             f"{head}\n{tail}"
         )
     return (  # cold_clear
-        f"{pv}🥶➡️😌 <b>30분봉 스토 침체 해소</b> (%K {k:.0f} > {STOCH_COLD})\n"
+        f"{pv}🥶➡️😌 <b>[{SYM_TAG}] 30분봉 스토 침체 해소</b> (%K {k:.0f} > {STOCH_COLD})\n"
         f"━━━━━━━━━━━━━\n"
         f"침체권 이탈 → 하단 침체 벗어남. 반등이 실제 진행되는 국면일 수 있음.\n"
         f"👉 롱 관점이면 하위봉 흐름 확인하며 유지/진행, 숏은 성급한 고점매도 주의.\n"
@@ -213,7 +215,7 @@ def fmt_stoch_cancel(event, k, when):
     lab = STOCH_LABELS.get(event, event)
     head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)"
     return (
-        f"❌ <b>[정정] 30분봉 스토 {lab} 잠정신호 취소</b>\n"
+        f"❌ <b>[정정·{SYM_TAG}] 30분봉 스토 {lab} 잠정신호 취소</b>\n"
         f"━━━━━━━━━━━━━\n"
         f"봉 마감 %K {k:.0f} — 조건 미충족(마감 전 되돌림)으로 앞서 보낸 "
         f"<b>‘{lab}’ 잠정신호는 무효</b>입니다.\n"
