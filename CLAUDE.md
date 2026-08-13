@@ -40,8 +40,15 @@ BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용.
 - **발송처**: 기존 그룹 2개 재사용, XAU 전용 토픽 신설(봇 토큰·chat_id 재사용).
   - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / 30분봉=622 / 1시간봉=623
   - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / 30분봉=207 / 1시간봉=208
-- **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-30m/-xau-1h` (각 유닛에 `Environment=SYMBOL=XAUUSDT`,
-  `FEED_MODE=poll`, XAU 맥점/막돌파 thread override). env 파일(`/etc/maekjeom-bot.env`)은 공유.
+- **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-30m/-xau-1h` (각 유닛 `Environment=SYMBOL=XAUUSDT`,`FEED_MODE=poll`).
+- ⚠️ **토픽 override는 반드시 EnvironmentFile로 (2026-08-13 버그수정)**: 공유 `/etc/maekjeom-bot.env`가 BTC 토픽
+  (THREAD_ID_30M=559 등)을 정의하는데, **systemd는 `EnvironmentFile`이 inline `Environment=`를 항상 덮어씀** →
+  유닛에 `Environment=TELEGRAM_THREAD_ID_30M=622`로 써도 무효(런타임 559로 새서 XAU 신호가 BTC 토픽으로 감).
+  **해결**: XAU 토픽을 `/etc/maekjeom-bot-xau.env`에 모아두고, 각 XAU 유닛 드롭인
+  `/etc/systemd/system/<unit>.service.d/override.conf`에 `[Service]\nEnvironmentFile=/etc/maekjeom-bot-xau.env` 추가
+  (드롭인 파일이 공유파일보다 **나중에 로드→우선**). 유닛 inline thread override는 죽은 설정(무해하나 신뢰 금지).
+  검증: `sudo tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value maekjeom-bot-xau-30m)/environ | grep THREAD_ID_30M` → 622.
+  (`systemctl show -p Environment`는 inline만 보여줘 오해 유발 — 반드시 /proc/PID/environ로 실 런타임 확인.)
 - **재시작**: `sudo systemctl restart maekjeom-bot-xau-3m maekjeom-bot-xau-5m maekjeom-bot-xau-30m maekjeom-bot-xau-1h`
 - **상태**: `systemctl is-active maekjeom-bot-xau-{3m,5m,30m,1h}` / `ps aux|grep ws_watch` → BTC4+XAU4 = **8개**
 - ⚠️ **금 휴장 주의**: 금 무기한은 주말·연말 등 underlying 휴장 때 거래정지/데이터 갭 가능(BTC 24/7과 다름).
