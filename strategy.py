@@ -159,14 +159,17 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     macd_up_trig = _fresh(((macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1)))   # GC 발생
                           | ((macd_line > 0) & (macd_line.shift(1) <= 0)))                        # 0선 상향
     stoch_up_trig = _fresh((k > 50) & (k.shift(1) <= 50))
-    rci_up_trig = _fresh(((rci_s > 0) & (rci_s.shift(1) <= 0))
-                         | ((rci_long > 0) & (rci_long.shift(1) <= 0)))
+    # RCI 막돌파 트리거 (BTC·XAU 공통, 2026-08-14 변경):
+    #   단>중 GC(9>13) & (RCI9 또는 RCI26 0선 상향돌파). 이전엔 GC 게이트 없이 0선돌파만이었음.
+    rci_up_trig = _fresh((((rci_s > 0) & (rci_s.shift(1) <= 0))
+                          | ((rci_long > 0) & (rci_long.shift(1) <= 0))) & (rci_s > rci_m))
     fresh_long = macd_up_trig + stoch_up_trig + rci_up_trig
     macd_dn_trig = _fresh(((macd_line < macd_sig) & (macd_line.shift(1) >= macd_sig.shift(1)))    # DC 발생
                           | ((macd_line < 0) & (macd_line.shift(1) >= 0)))                        # 0선 하향
     stoch_dn_trig = _fresh((k < 50) & (k.shift(1) >= 50))
-    rci_dn_trig = _fresh(((rci_s < 0) & (rci_s.shift(1) >= 0))
-                         | ((rci_long < 0) & (rci_long.shift(1) >= 0)))
+    # 숏 거울: 단<중 DC(9<13) & (RCI9 또는 RCI26 0선 하향돌파)
+    rci_dn_trig = _fresh((((rci_s < 0) & (rci_s.shift(1) >= 0))
+                          | ((rci_long < 0) & (rci_long.shift(1) >= 0))) & (rci_s < rci_m))
     fresh_short = macd_dn_trig + stoch_dn_trig + rci_dn_trig
 
     # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
