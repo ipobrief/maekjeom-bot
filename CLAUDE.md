@@ -41,6 +41,7 @@ BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용.
   - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / 30분봉=622 / 1시간봉=623
   - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / 30분봉=207 / 1시간봉=208
 - **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-30m/-xau-1h` (각 유닛 `Environment=SYMBOL=XAUUSDT`,`FEED_MODE=poll`).
+- **막돌파 창 `FRESH_BARS`(2026-08-14)**: XAU **5m·30m·1h 유닛에 `Environment=FRESH_BARS=3`**(15분 창 — 연속3봉 급락 포착). XAU 3m·BTC 전부는 미설정=기본 2봉. 코드는 각 CFG `fresh_bars=int(os.environ.get("FRESH_BARS","2"))`. FRESH_BARS는 어느 env파일에도 없어 inline `Environment=`로 안전(EnvironmentFile 충돌 없음). BTC 봇은 재시작 불필요(env 없어 동작 동일).
 - ⚠️ **토픽 override는 반드시 EnvironmentFile로 (2026-08-13 버그수정)**: 공유 `/etc/maekjeom-bot.env`가 BTC 토픽
   (THREAD_ID_30M=559 등)을 정의하는데, **systemd는 `EnvironmentFile`이 inline `Environment=`를 항상 덮어씀** →
   유닛에 `Environment=TELEGRAM_THREAD_ID_30M=622`로 써도 무효(런타임 559로 새서 XAU 신호가 BTC 토픽으로 감).
