@@ -54,6 +54,7 @@ CFG = {
     "rem_req": 3,                    # 필수2(선행스팬1·20일선) 외 나머지6 중 3개(대각선 제외, 2026-07-05)
     "atr_stop_mult": 2.0,
     "limit_offset": 0.0003,          # 지정가 진입 = 현재가 ±0.03% (1호가 아래/위)
+    "fresh_bars": int(os.environ.get("FRESH_BARS", "2")),   # 막돌파 동시성 창(봉). XAU 상위봉=3, 기본2
 }
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등). 미설정=BTC
 TF = "1h"          # 주력 타임프레임 (1시간봉이 백테스트상 구조적으로 우월)

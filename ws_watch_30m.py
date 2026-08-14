@@ -35,6 +35,7 @@ CFG = {
     "atr_period": 14, "rci_long": 26, "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 3,
     "atr_stop_mult": 2.0, "limit_offset": 0.0003, "trend_lookback": 100,
+    "fresh_bars": int(os.environ.get("FRESH_BARS", "2")),   # 막돌파 동시성 창(봉). XAU 상위봉=3, 기본2
 }
 
 WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")  # XAU=wss://fstream.binance.com
