@@ -295,20 +295,25 @@ def handle_tick(st, k):
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         aligned = breakout and ((e["r1_long"] and e["r2_long"]) if d == "LONG"
                                 else (e["r1_short"] and e["r2_short"]))
-        if d and breakout and getattr(handle_tick, "send_confirm", True):
+        must_ok = bool(d) and all((e["must_long"] if d == "LONG" else e["must_short"]).values())  # 잠정과 동일 필수2 가드
+        if d and breakout and must_ok and getattr(handle_tick, "send_confirm", True):
             if aligned:
                 if st.sent_key != (d, when):
-                    emit(fmt_signal(e, when, provisional=False))
+                    emit(fmt_signal(e, when, provisional=False, active_dir=d))
                     st.last_dir = d; st.sent_key = (d, when)
                 else:
                     print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
             elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
-                emit_breakout(fmt_signal(e, when, provisional=False))
+                emit_breakout(fmt_signal(e, when, provisional=False, active_dir=d))
                 st.sent_bo = (d, when); st.bo_last_dir = d
             else:
                 print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
         else:
-            print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: {(d and '막돌파아님') or '신호없음'}")
+            reason = ("신호없음" if not d else "막돌파아님" if not breakout else "필수미충족" if not must_ok else "억제")
+            print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: {reason} | "
+                  f"dir={e['direction']}/act={e.get('direction_active')} "
+                  f"freshL={e.get('fresh_long')} freshS={e.get('fresh_short')} "
+                  f"mustL={sum(e['must_long'].values())} mustS={sum(e['must_short'].values())}")
         divergence.check(st.df0, SYMBOL, TF, _token(),
                          os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
                          os.environ.get("TELEGRAM_THREAD_ID_30M"), st.sent_div)
