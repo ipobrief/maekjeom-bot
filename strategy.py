@@ -161,17 +161,17 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     #   GC는 05:20·0선돌파는 06:00이라 05:50 창 비껴감). 상태+방향이면 추세 진행 중 계속 유효.
     macd_up_trig = _fresh((macd_line > macd_sig) & (macd_line > macd_line.shift(1)))
     stoch_up_trig = _fresh((k > 50) & (k.shift(1) <= 50))       # 스토=50 상향돌파 '순간'
-    # RCI 막돌파 (2026-08-15): RCI9 또는 RCI26 0선 상향돌파 '순간'(26 돌파면 더 좋으나 9 돌파여도 OK).
-    #   GC 게이트 없음(2026-08-14 넣었다가 08-15 제거).
-    rci_up_trig = _fresh(((rci_s > 0) & (rci_s.shift(1) <= 0))
-                         | ((rci_long > 0) & (rci_long.shift(1) <= 0)))
+    # RCI 막돌파 (2026-08-15 재정의): RCI26 0선 상향돌파는 항상 유효 /
+    #   RCI9 0선 상향돌파는 **MACD가 0선 위일 때만** 유효(MACD 0선 아래면 9선 돌파는 노이즈 → 26 필요).
+    rci_up_trig = _fresh(((rci_long > 0) & (rci_long.shift(1) <= 0))
+                         | (((rci_s > 0) & (rci_s.shift(1) <= 0)) & (macd_line > 0)))
     fresh_long = macd_up_trig + stoch_up_trig + rci_up_trig
     # 숏 거울: DC 상태(선<시그널) + 하향(선 하락)
     macd_dn_trig = _fresh((macd_line < macd_sig) & (macd_line < macd_line.shift(1)))
     stoch_dn_trig = _fresh((k < 50) & (k.shift(1) >= 50))       # 숏 거울: 50 하향돌파 순간
-    # 숏 거울: RCI9 또는 RCI26 0선 하향돌파 순간(GC게이트 없음)
-    rci_dn_trig = _fresh(((rci_s < 0) & (rci_s.shift(1) >= 0))
-                         | ((rci_long < 0) & (rci_long.shift(1) >= 0)))
+    # 숏 거울: RCI26 하향돌파는 항상 유효 / RCI9 하향돌파는 MACD가 0선 아래일 때만 유효
+    rci_dn_trig = _fresh(((rci_long < 0) & (rci_long.shift(1) >= 0))
+                         | (((rci_s < 0) & (rci_s.shift(1) >= 0)) & (macd_line < 0)))
     fresh_short = macd_dn_trig + stoch_dn_trig + rci_dn_trig
 
     # ── 청산(익절) = 반대 셋업 형성 (매수익절=매도진입)
