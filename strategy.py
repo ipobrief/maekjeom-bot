@@ -156,16 +156,18 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     W = cfg.get("fresh_bars", 2)   # 2026-07-27 3→2: 더 엄격한 '동시 돌파'(2봉 이내)
     def _fresh(ev):
         return ev.astype(int).rolling(W, min_periods=1).max()
-    macd_up_trig = _fresh(((macd_line > macd_sig) & (macd_line.shift(1) <= macd_sig.shift(1)))   # GC 발생
-                          | ((macd_line > 0) & (macd_line.shift(1) <= 0)))                        # 0선 상향
+    # MACD 막돌파 트리거 (2026-08-15 완화, BTC·XAU 공통): GC 상태(선>시그널) + 상향(선 상승).
+    #   이전엔 'GC 발생 순간 또는 0선 상향돌파 순간'(모멘트)만 → 크로스가 창 밖이면 놓침(예 08-15 05:50 XAU:
+    #   GC는 05:20·0선돌파는 06:00이라 05:50 창 비껴감). 상태+방향이면 추세 진행 중 계속 유효.
+    macd_up_trig = _fresh((macd_line > macd_sig) & (macd_line > macd_line.shift(1)))
     stoch_up_trig = _fresh((k > 50) & (k.shift(1) <= 50))
     # RCI 막돌파 트리거 (BTC·XAU 공통, 2026-08-14 변경):
     #   단>중 GC(9>13) & (RCI9 또는 RCI26 0선 상향돌파). 이전엔 GC 게이트 없이 0선돌파만이었음.
     rci_up_trig = _fresh((((rci_s > 0) & (rci_s.shift(1) <= 0))
                           | ((rci_long > 0) & (rci_long.shift(1) <= 0))) & (rci_s > rci_m))
     fresh_long = macd_up_trig + stoch_up_trig + rci_up_trig
-    macd_dn_trig = _fresh(((macd_line < macd_sig) & (macd_line.shift(1) >= macd_sig.shift(1)))    # DC 발생
-                          | ((macd_line < 0) & (macd_line.shift(1) >= 0)))                        # 0선 하향
+    # 숏 거울: DC 상태(선<시그널) + 하향(선 하락)
+    macd_dn_trig = _fresh((macd_line < macd_sig) & (macd_line < macd_line.shift(1)))
     stoch_dn_trig = _fresh((k < 50) & (k.shift(1) >= 50))
     # 숏 거울: 단<중 DC(9<13) & (RCI9 또는 RCI26 0선 하향돌파)
     rci_dn_trig = _fresh((((rci_s < 0) & (rci_s.shift(1) >= 0))
