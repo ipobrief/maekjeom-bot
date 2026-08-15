@@ -6,6 +6,7 @@
 - 접속: ssh -i C:\Users\USER\.ssh\id_ed25519 ubuntu@161.33.150.142
 
 ## 봇 구성 (2026-08-04 시간대: 3m·5m·30m·1h. 15m·4h·1d 중단)
+⚠️ **2026-08-15: BTC·XAU 8봇 전부 선물 REST 폴링(fapi)로 통일** (`FEED_MODE=poll`). 기존 BTC는 현물 WS 틱+선물 과거봉 **하이브리드**였는데, 현물이 선물보다 ~24p 높아 **현물 형성가를 선물 지표에 비교 → 허위 필수 성립**(09:55·17:33 허위신호). 특히 재시작 직후 df0가 순수 선물이라 증폭. 폴링 전환으로 과거봉·형성봉 모두 선물 → 네가 보는 BTCUSDT.P 차트와 일치, 혼합 허위 제거. 비용 봉마감 감지 ~15초. (XAU는 fstream 차단으로 원래 폴링.)
 맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
 - ws_watch.py — 1시간봉 (TELEGRAM_TOKEN, chris1H_bot, 맥점토픽 thread=5)
 - ws_watch_5m.py — 5분봉 (chris15m_bot=TELEGRAM_TOKEN_1M → BotFather에서 chris5m_bot로 개명. 2026-08-04 15분봉 대체. 맥점토픽 THREAD_ID_5M=574)

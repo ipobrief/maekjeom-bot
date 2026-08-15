@@ -27,7 +27,7 @@ def run_poll(mod, send_confirm=True, poll_sec=None):
     print("기준 히스토리 로드 중…")
     st.load_base()
     print(f"📡 맥점 REST 폴링 감시 시작 — {sym} {tf} "
-          f"(fstream 차단 대체, {poll_sec}s 폴링, "
+          f"(선물 fapi {poll_sec}s 폴링, "
           f"{'2단계: 예비+확정' if send_confirm else '예비만'})")
     prev_open = None
     while True:
