@@ -286,6 +286,8 @@ def handle_tick(st, k):
     now = dt.datetime.now().timestamp()
     st.upsert_bar(k)
     is_closed = bool(k["x"])
+    if ab.weekend_muted():   # XAU 주말(금 휴장) 발송 억제 (df0는 upsert로 최신 유지)
+        return
 
     if is_closed:
         st.maybe_refresh_htf()

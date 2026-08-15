@@ -43,6 +43,23 @@ def kst(ts):
     """UTC 타임스탬프를 한국시간으로 변환."""
     return ts.tz_convert(KST) if ts.tzinfo else ts.tz_localize("UTC").tz_convert(KST)
 
+
+def weekend_muted():
+    """env WEEKEND_OFF=1이면 금 시장 주말 휴장(COMEX 금 17:00 ET~일 18:00 ET) 동안 발송 억제.
+    KST 근사: 토 06:00 ~ 월 08:00 (DST 무시, 경계 최대 1h 오차 — 어차피 얇은 구간).
+    XAU 유닛에만 WEEKEND_OFF=1 부여 → BTC는 항상 False(24/7)."""
+    if os.environ.get("WEEKEND_OFF") != "1":
+        return False
+    now = dt.datetime.now(KST)
+    wd = now.weekday()   # 0=월 … 5=토 6=일
+    if wd == 5:          # 토: 06:00 이후 휴장(그 전은 금요일 미국장)
+        return now.hour >= 6
+    if wd == 6:          # 일: 종일 휴장
+        return True
+    if wd == 0:          # 월: 08:00 전까지 휴장
+        return now.hour < 8
+    return False
+
 # 선행스팬1 돌파 추세추종 규칙 (사용자 정의)
 # 백테스트 결론: 1시간봉 + 트레일링 청산 + 양방향이 최적. 손절=직전저점/고점.
 CFG = {
