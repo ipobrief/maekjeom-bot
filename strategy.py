@@ -56,6 +56,39 @@ def align_bias(higher: pd.Series, target_index: pd.DatetimeIndex) -> pd.Series:
     return higher.reindex(higher.index.union(target_index)).ffill().reindex(target_index)
 
 
+def nwave_flags(df, L=3, R=3, lookback=120, fib_lo=0.236, fib_hi=0.786, only_last=60):
+    """N파동(조정 후 직전고점 돌파) 감지 — 큰형님 우선의 법칙(책 부록).
+    롱: 스윙 A(저)→B(고)→C(저)에서 A<C<B(higher-low), C가 A-B의 피보 되돌림(23.6~78.6%),
+        A 안 깸, 현재 종가가 직전고점 B 돌파. 숏은 거울. 표시용 배지(only_last 최근봉만 계산)."""
+    sh = ind.swing_high(df, L, R)
+    sl = ind.swing_low(df, L, R)
+    close = df["close"].values
+    n = len(df)
+    hi = [(j, sh.iloc[j]) for j in range(n) if not pd.isna(sh.iloc[j])]
+    lo = [(j, sl.iloc[j]) for j in range(n) if not pd.isna(sl.iloc[j])]
+    nl = np.zeros(n, bool); ns = np.zeros(n, bool)
+    for i in range(max(0, n - only_last), n):
+        los = [x for x in lo if x[0] + R <= i and x[0] >= i - lookback]
+        his = [x for x in hi if x[0] + R <= i and x[0] >= i - lookback]
+        if len(los) >= 2 and his:                       # 롱: A(저)<C(저)<B(고)
+            C = los[-1]; Bc = [x for x in his if x[0] < C[0]]
+            if Bc:
+                B = Bc[-1]; Ac = [x for x in los if x[0] < B[0]]
+                if Ac:
+                    a, b, c = Ac[-1][1], B[1], C[1]
+                    if a < c < b and (b - a) > 0 and fib_lo <= (b - c) / (b - a) <= fib_hi and close[i] > b:
+                        nl[i] = True
+        if len(his) >= 2 and lo:                        # 숏 거울: A(고)>C(고)>B(저)
+            C = his[-1]; Bc = [x for x in lo if x[0] < C[0]]
+            if Bc:
+                B = Bc[-1]; Ac = [x for x in his if x[0] < B[0]]
+                if Ac:
+                    a, b, c = Ac[-1][1], B[1], C[1]
+                    if a > c > b and (a - b) > 0 and fib_lo <= (c - b) / (a - b) <= fib_hi and close[i] < b:
+                        ns[i] = True
+    return pd.Series(nl, index=df.index), pd.Series(ns, index=df.index)
+
+
 def build_signals(df15, df1h, df4h, df1d, cfg):
     """15분봉 기준 신호 생성 — 선행스팬1 돌파 추세추종 규칙.
     롱 진입 5조건(AND): 종가>선행스팬1, MACD GC/0선위, 스토%K>50,
@@ -83,6 +116,9 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     b1_gc, b1_st = _boss(df1h)
     b2_gc, b2_st = _boss(df4h)
     b3_gc, b3_st = _boss(df1d)
+
+    # ── N파동(조정 후 직전고점 돌파) — 큰형님 우선의 법칙 배지용 ──
+    nwave_long, nwave_short = nwave_flags(d, cfg.get("pivot_left", 3), cfg.get("pivot_right", 3))
 
     tenkan, kijun = ich["tenkan"], ich["kijun"]
     # 선행스팬1은 차트 '끝점'(현재시점 (전환선+기준선)/2, shift 없음)과 종가 비교.
@@ -216,6 +252,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
     out["boss_gc_1"], out["boss_gc_2"], out["boss_gc_3"] = b1_gc, b2_gc, b3_gc
     out["boss_st_1"], out["boss_st_2"], out["boss_st_3"] = b1_st, b2_st, b3_st
+    out["nwave_long"], out["nwave_short"] = nwave_long, nwave_short
     out["long"], out["short"] = long_entry, short_entry
     out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
@@ -302,6 +339,8 @@ def explain(sig_row, cfg) -> dict:
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
         "boss_gc": [bool(r.get("boss_gc_1")), bool(r.get("boss_gc_2")), bool(r.get("boss_gc_3"))],
         "boss_st": [bool(r.get("boss_st_1")), bool(r.get("boss_st_2")), bool(r.get("boss_st_3"))],
+        "nwave_long": bool(r.get("nwave_long", False)),
+        "nwave_short": bool(r.get("nwave_short", False)),
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
