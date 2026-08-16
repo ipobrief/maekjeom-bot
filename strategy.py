@@ -74,12 +74,15 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     bd = align_bias(tf_bias(df1d), d.index)
     bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
-    # ── 큰형님 우선의 법칙(책 부록): 최상위 상위TF(df1d)의 MACD·스토 확인 ──
-    _bml, _bms, _ = ind.macd(df1d["close"])
-    _bk, _ = ind.stochastic(df1d)
-    boss_macd_gc = align_bias((_bml > _bms).astype(float), d.index) >= 0.5   # MACD 골든크로스(상승)
-    boss_macd_0  = align_bias((_bml > 0).astype(float), d.index) >= 0.5      # MACD 0선 위
-    boss_stoch50 = align_bias((_bk > 50).astype(float), d.index) >= 0.5      # 스토 50 위
+    # ── 큰형님 우선의 법칙(책 부록): 상위 3개 TF(df1h·df4h·df1d) 각각 MACD GC·스토50 확인 ──
+    def _boss(dfh):
+        ml, ms, _ = ind.macd(dfh["close"]); kk, _ = ind.stochastic(dfh)
+        gc = align_bias((ml > ms).astype(float), d.index) >= 0.5   # MACD 골든크로스
+        st = align_bias((kk > 50).astype(float), d.index) >= 0.5   # 스토 50 위
+        return gc, st
+    b1_gc, b1_st = _boss(df1h)
+    b2_gc, b2_st = _boss(df4h)
+    b3_gc, b3_st = _boss(df1d)
 
     tenkan, kijun = ich["tenkan"], ich["kijun"]
     # 선행스팬1은 차트 '끝점'(현재시점 (전환선+기준선)/2, shift 없음)과 종가 비교.
@@ -211,7 +214,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
-    out["boss_macd_gc"], out["boss_macd_0"], out["boss_stoch50"] = boss_macd_gc, boss_macd_0, boss_stoch50
+    out["boss_gc_1"], out["boss_gc_2"], out["boss_gc_3"] = b1_gc, b2_gc, b3_gc
+    out["boss_st_1"], out["boss_st_2"], out["boss_st_3"] = b1_st, b2_st, b3_st
     out["long"], out["short"] = long_entry, short_entry
     out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
@@ -296,9 +300,8 @@ def explain(sig_row, cfg) -> dict:
         "tf_1h": tf_txt(r.get("bias_1h", 0)),
         "tf_4h": tf_txt(r.get("bias_4h", 0)),
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
-        "boss_macd_gc": bool(r.get("boss_macd_gc", False)),
-        "boss_macd_0": bool(r.get("boss_macd_0", False)),
-        "boss_stoch50": bool(r.get("boss_stoch50", False)),
+        "boss_gc": [bool(r.get("boss_gc_1")), bool(r.get("boss_gc_2")), bool(r.get("boss_gc_3"))],
+        "boss_st": [bool(r.get("boss_st_1")), bool(r.get("boss_st_2")), bool(r.get("boss_st_3"))],
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
