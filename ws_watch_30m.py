@@ -130,7 +130,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
     top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
-                "<b>추세선 돌파가 먼저(델타지역 진입!)</b> → 그 후에야 선행스팬1·20일선·MACD·스토·RCI 돌파가 의미. 가로 매물대·채널·피보나치도 확인.\n")
+                "<b>추세선 돌파가 먼저(델타지역 진입!)</b> & 가로 매물대·채널·피보나치도 확인.\n")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
