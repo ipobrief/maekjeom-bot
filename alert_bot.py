@@ -244,8 +244,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
         box + dir_line + badge + head +
-        f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
-        f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
         f"{fmt_boss(e, long_, HTF_LABELS)}"
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
