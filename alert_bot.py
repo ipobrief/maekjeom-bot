@@ -180,16 +180,17 @@ def fmt_checks(checks):
 
 
 def fmt_boss(e, long_, htf_labels):
-    """큰형님 우선의 법칙(책 부록): 상위 3개 TF의 MACD(GC)·스토(50)가 신호 방향과 정렬된 개수.
-    표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울. 다수(≥2/3) 정렬이면 ✅."""
+    """큰형님 우선의 법칙(책 부록): 상위 3개 TF 각각 MACD(GC)·스토(50)가 신호 방향과 정렬됐는지.
+    표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울."""
     gc = e.get("boss_gc") or [False, False, False]
     st = e.get("boss_st") or [False, False, False]
-    m = sum(1 for g in gc if (g if long_ else not g))   # MACD 정렬 개수
-    s = sum(1 for x in st if (x if long_ else not x))    # 스토 정렬 개수
-    ok = m >= 2 and s >= 2
-    tf = "·".join(htf_labels)
-    return (f"🐘 <b>큰형님(상위 {tf})</b> {'✅정렬' if ok else '⚠️미정렬'} "
-            f"— MACD(GC) {m}/3 · 스토(50) {s}/3\n")
+
+    def mk(i):
+        mo = gc[i] if long_ else (not gc[i])
+        so = st[i] if long_ else (not st[i])
+        return f"{htf_labels[i]} {'✅' if mo else '❌'}·{'✅' if so else '❌'}"
+
+    return "🐘 <b>큰형님 정렬(MACD·스토)</b> — " + " / ".join(mk(i) for i in range(3)) + "\n"
 
 
 def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
