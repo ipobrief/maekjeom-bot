@@ -250,15 +250,16 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
-    return bold_all(
-        box + dir_line + badge + head +
-        f"{fmt_boss(e, long_, HTF_LABELS)}"
-        f"{fib_warn}"
-        f"━━━━━━━━━━━━━\n"
-        f"{top_warn}"
-        f"\n<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
-        f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
-        f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
+    return (
+        bold_all(
+            box + dir_line + badge + head +
+            f"{fmt_boss(e, long_, HTF_LABELS)}"
+            f"{fib_warn}"
+            f"━━━━━━━━━━━━━\n"
+            f"{top_warn}")
+        + f"\n<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
+        + f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
+        + f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
 
 
