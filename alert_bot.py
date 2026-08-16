@@ -179,6 +179,14 @@ def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
+def bold_all(text):
+    """카드 전체를 볼드로. 내부 <b>/<i>/<pre> 태그를 제거(중첩·조기종료 방지) 후 통째로 <b>로 감쌈."""
+    plain = (text.replace("<b>", "").replace("</b>", "")
+                 .replace("<i>", "").replace("</i>", "")
+                 .replace("<pre>", "").replace("</pre>", ""))
+    return "<b>" + plain + "</b>"
+
+
 def fmt_boss(e, long_, htf_labels):
     """큰형님 우선의 법칙(책 부록): 상위 3개 TF 각각 MACD(GC)·스토(50)가 신호 방향과 정렬됐는지.
     표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울."""
@@ -233,8 +241,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     # 단, exit_line이 진입가보다 수익 방향에 있어야 유효 (롱: sup < px / 숏: res < px)
     # 방향(롱/숏)을 맨 첫 줄로 + 진입 전 추세선·X선 확인 최우선 경고
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
-                "<b>추세선 돌파가 먼저(델타지역 진입!)</b> & 가로 매물대·채널·피보나치도 확인.\n")
+    top_warn = ("📏 [모든 것에 우선]\n"
+                "추세선 돌파가 먼저(델타지역 진입!) & 가로 매물대·채널·피보나치도 확인.\n")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
@@ -242,13 +250,13 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
-    return (
+    return bold_all(
         box + dir_line + badge + head +
         f"{fmt_boss(e, long_, HTF_LABELS)}"
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"{top_warn}"
-        f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
+        f"\n<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
         f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )

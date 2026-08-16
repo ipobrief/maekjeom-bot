@@ -122,8 +122,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     elif rem_n == n_tot - 1:
         badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = ("📏 <b>[모든 것에 우선] 추세선은 직접 작도·판단!</b>\n"
-                "<b>추세선 돌파가 먼저(델타지역 진입!)</b> & 가로 매물대·채널·피보나치도 확인.\n")
+    top_warn = ("📏 [모든 것에 우선]\n"
+                "추세선 돌파가 먼저(델타지역 진입!) & 가로 매물대·채널·피보나치도 확인.\n")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
@@ -131,13 +131,13 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
     fib_warn = "" if aligned_bias else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
-    return (
+    return ab.bold_all(
         box + dir_line + badge + head +
         f"{ab.fmt_boss(e, long_, HTF_LABELS)}"
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"{top_warn}"
-        f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
+        f"\n<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
         f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
