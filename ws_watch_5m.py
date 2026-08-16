@@ -133,6 +133,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned_bias else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
+        f"{ab.fmt_boss(e, long_, HTF_LABELS)}"
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"

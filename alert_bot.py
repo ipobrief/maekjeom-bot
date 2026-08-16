@@ -179,6 +179,18 @@ def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
 
+def fmt_boss(e, long_, htf_labels):
+    """큰형님 우선의 법칙(책 부록): 최상위 상위TF의 MACD·스토가 신호 방향과 정렬됐는지 카드 라인.
+    표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울."""
+    b_macd = bool(e.get("boss_macd_gc")); b_st = bool(e.get("boss_stoch50"))
+    macd_ok = b_macd if long_ else (not b_macd)
+    st_ok = b_st if long_ else (not b_st)
+    zero = "·0선위" if e.get("boss_macd_0") else "·0선아래"
+    return (f"🐘 <b>큰형님({htf_labels[2]})</b> {'✅정렬' if (macd_ok and st_ok) else '⚠️미정렬'} "
+            f"— MACD {'✅' if macd_ok else '❌'}({'GC' if b_macd else 'DC'}{zero}) "
+            f"· 스토 {'✅' if st_ok else '❌'}(50{'위' if b_st else '아래'})\n")
+
+
 def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
@@ -230,6 +242,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         box + dir_line + badge + head +
         f"📊 <b>상위TF 방향</b> {'✅추세정렬' if aligned else '⚠️역추세—신중'}\n"
         f"   · {HTF_LABELS[0]} {e['tf_1h']} / {HTF_LABELS[1]} {e['tf_4h']} / {HTF_LABELS[2]} {e['tf_1d']}\n"
+        f"{fmt_boss(e, long_, HTF_LABELS)}"
         f"{fib_warn}"
         f"━━━━━━━━━━━━━\n"
         f"💵 현재가 {px:,.1f}\n"

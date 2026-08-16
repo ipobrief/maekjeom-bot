@@ -74,6 +74,13 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     bd = align_bias(tf_bias(df1d), d.index)
     bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
+    # ── 큰형님 우선의 법칙(책 부록): 최상위 상위TF(df1d)의 MACD·스토 확인 ──
+    _bml, _bms, _ = ind.macd(df1d["close"])
+    _bk, _ = ind.stochastic(df1d)
+    boss_macd_gc = align_bias((_bml > _bms).astype(float), d.index) >= 0.5   # MACD 골든크로스(상승)
+    boss_macd_0  = align_bias((_bml > 0).astype(float), d.index) >= 0.5      # MACD 0선 위
+    boss_stoch50 = align_bias((_bk > 50).astype(float), d.index) >= 0.5      # 스토 50 위
+
     tenkan, kijun = ich["tenkan"], ich["kijun"]
     # 선행스팬1은 차트 '끝점'(현재시점 (전환선+기준선)/2, shift 없음)과 종가 비교.
     # ich["senkou1"]은 shift(26)된 26봉 전 과거값이라 종가 비교에 부적합(회원님 규칙).
@@ -204,6 +211,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
+    out["boss_macd_gc"], out["boss_macd_0"], out["boss_stoch50"] = boss_macd_gc, boss_macd_0, boss_stoch50
     out["long"], out["short"] = long_entry, short_entry
     out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
@@ -288,6 +296,9 @@ def explain(sig_row, cfg) -> dict:
         "tf_1h": tf_txt(r.get("bias_1h", 0)),
         "tf_4h": tf_txt(r.get("bias_4h", 0)),
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
+        "boss_macd_gc": bool(r.get("boss_macd_gc", False)),
+        "boss_macd_0": bool(r.get("boss_macd_0", False)),
+        "boss_stoch50": bool(r.get("boss_stoch50", False)),
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
