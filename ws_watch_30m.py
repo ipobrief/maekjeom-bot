@@ -111,7 +111,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     risk_pct = abs(px - swing) / px * 100
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
-    aligned_bias = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
+    aligned_bias = ab.boss_aligned(e, long_)   # 역추세 판정 = 큰형님(상위TF) 정렬 기준
     badge = ""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     aligned = fresh >= 3 and ((e.get("r1_long") and e.get("r2_long")) if long_

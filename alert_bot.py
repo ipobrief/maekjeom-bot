@@ -201,6 +201,15 @@ def fmt_boss(e, long_, htf_labels):
     return "🐘 <b>큰형님 정렬(MACD·스토)</b> — " + " / ".join(mk(i) for i in range(3)) + "\n"
 
 
+def boss_aligned(e, long_, need=4):
+    """큰형님(상위3TF MACD 0선·스토 50) 6개 항목 중 need개 이상 신호방향 정렬이면 True(추세정렬).
+    미만이면 역추세 경고. 역추세 판정을 큰형님 기준으로 통일(2026-08-18)."""
+    m0 = e.get("boss_m0") or [False, False, False]
+    st = e.get("boss_st") or [False, False, False]
+    cnt = sum((m0[i] if long_ else not m0[i]) + (st[i] if long_ else not st[i]) for i in range(3))
+    return cnt >= need
+
+
 def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
@@ -219,7 +228,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     risk_pct = abs(px - swing) / px * 100
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
-    aligned = (e["bias"] > 0) == long_ and abs(e["bias"]) >= 2
+    aligned_bias = boss_aligned(e, long_)   # 역추세 판정 = 큰형님(상위TF) 정렬 기준
     # 배지: 🎯 막돌파(타이밍) / ⭐ 전조건 정렬 / 🔥 강신호 — 🎯는 ⭐·🔥와 중첩 표시 가능
     badge = ""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
@@ -248,7 +257,7 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
-    fib_warn = "" if aligned else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
+    fib_warn = "" if aligned_bias else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
         bold_all(
