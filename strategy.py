@@ -110,12 +110,12 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     # ── 큰형님 우선의 법칙(책 부록): 상위 3개 TF(df1h·df4h·df1d) 각각 MACD GC·스토50 확인 ──
     def _boss(dfh):
         ml, ms, _ = ind.macd(dfh["close"]); kk, _ = ind.stochastic(dfh)
-        gc = align_bias((ml > ms).astype(float), d.index) >= 0.5   # MACD 골든크로스
+        m0 = align_bias((ml > 0).astype(float), d.index) >= 0.5    # MACD 0선 위 (큰형님=책 p190)
         st = align_bias((kk > 50).astype(float), d.index) >= 0.5   # 스토 50 위
-        return gc, st
-    b1_gc, b1_st = _boss(df1h)
-    b2_gc, b2_st = _boss(df4h)
-    b3_gc, b3_st = _boss(df1d)
+        return m0, st
+    b1_m0, b1_st = _boss(df1h)
+    b2_m0, b2_st = _boss(df4h)
+    b3_m0, b3_st = _boss(df1d)
 
     # ── N파동(조정 후 직전고점 돌파) — 큰형님 우선의 법칙 배지용 ──
     nwave_long, nwave_short = nwave_flags(d, cfg.get("pivot_left", 3), cfg.get("pivot_right", 3))
@@ -250,7 +250,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["swing_low"] = swing_low
     out["swing_high"] = swing_high
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
-    out["boss_gc_1"], out["boss_gc_2"], out["boss_gc_3"] = b1_gc, b2_gc, b3_gc
+    out["boss_m0_1"], out["boss_m0_2"], out["boss_m0_3"] = b1_m0, b2_m0, b3_m0
     out["boss_st_1"], out["boss_st_2"], out["boss_st_3"] = b1_st, b2_st, b3_st
     out["nwave_long"], out["nwave_short"] = nwave_long, nwave_short
     out["long"], out["short"] = long_entry, short_entry
@@ -337,7 +337,7 @@ def explain(sig_row, cfg) -> dict:
         "tf_1h": tf_txt(r.get("bias_1h", 0)),
         "tf_4h": tf_txt(r.get("bias_4h", 0)),
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
-        "boss_gc": [bool(r.get("boss_gc_1")), bool(r.get("boss_gc_2")), bool(r.get("boss_gc_3"))],
+        "boss_m0": [bool(r.get("boss_m0_1")), bool(r.get("boss_m0_2")), bool(r.get("boss_m0_3"))],
         "boss_st": [bool(r.get("boss_st_1")), bool(r.get("boss_st_2")), bool(r.get("boss_st_3"))],
         "nwave_long": bool(r.get("nwave_long", False)),
         "nwave_short": bool(r.get("nwave_short", False)),

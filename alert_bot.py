@@ -190,11 +190,11 @@ def bold_all(text):
 def fmt_boss(e, long_, htf_labels):
     """큰형님 우선의 법칙(책 부록): 상위 3개 TF 각각 MACD(GC)·스토(50)가 신호 방향과 정렬됐는지.
     표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울."""
-    gc = e.get("boss_gc") or [False, False, False]
+    m0 = e.get("boss_m0") or [False, False, False]
     st = e.get("boss_st") or [False, False, False]
 
     def mk(i):
-        mo = gc[i] if long_ else (not gc[i])
+        mo = m0[i] if long_ else (not m0[i])
         so = st[i] if long_ else (not st[i])
         return f"{htf_labels[i]} {'✅' if mo else '❌'}·{'✅' if so else '❌'}"
 
