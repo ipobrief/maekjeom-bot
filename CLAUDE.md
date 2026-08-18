@@ -9,7 +9,7 @@
 ⚠️ **2026-08-15: BTC·XAU 8봇 전부 선물 REST 폴링(fapi)로 통일** (`FEED_MODE=poll`). 기존 BTC는 현물 WS 틱+선물 과거봉 **하이브리드**였는데, 현물이 선물보다 ~24p 높아 **현물 형성가를 선물 지표에 비교 → 허위 필수 성립**(09:55·17:33 허위신호). 특히 재시작 직후 df0가 순수 선물이라 증폭. 폴링 전환으로 과거봉·형성봉 모두 선물 → 네가 보는 BTCUSDT.P 차트와 일치, 혼합 허위 제거. 비용 봉마감 감지 ~15초. (XAU는 fstream 차단으로 원래 폴링.)
 맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
 - ws_watch_10m.py — **10분봉 (2026-08-18 신설, 1시간봉 대체)**. 바이낸스 10m 미지원→data.py가 5분봉 2개 합성. 토큰 chris1H_bot(TELEGRAM_TOKEN) 재사용. 맥점토픽 THREAD_ID_10M=911(BTC)/912(XAU), 막돌파 BO_THREAD_10M=403(BTC)/404(XAU). HTF=30/60/120분. **스토 과열/침체 환경알림도 이 봇이 담당(30분봉→10분봉 이동)**. FEED_MODE=poll 필수(10m WS 없음).
-- ~~ws_watch.py — 1시간봉~~ — 2026-08-18 중단(disable). 토픽(맥점5/막돌파4)은 보존.
+- ~~ws_watch.py — 1시간봉~~ — 2026-08-18 중단(disable). 토픽(맥점5·623/막돌파4·208)도 삭제(deleteForumTopic).
 - ws_watch_5m.py — 5분봉 (chris15m_bot=TELEGRAM_TOKEN_1M → BotFather에서 chris5m_bot로 개명. 2026-08-04 15분봉 대체. 맥점토픽 THREAD_ID_5M=574)
 - ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → chris30m_bot 개명, 맥점토픽 THREAD_ID_30M=559)
 - ws_watch_3m.py — 3분봉 (chris1d_bot=TELEGRAM_TOKEN_1D → chris3m_bot 개명, 맥점토픽 THREAD_ID_3M=558)
@@ -40,8 +40,8 @@ BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용.
   `handle_tick`에 공급(라우팅·카드·중복억제 로직 동일 재사용). BTC는 현물 WS 정상이라 그대로.
   ※ `WS_BASE` env는 폴링 모드에선 무시됨(유닛에 남아있어도 무해). XAU는 과거봉+형성봉 모두 선물(fapi)이라 순수 선물 신호.
 - **발송처**: 기존 그룹 2개 재사용, XAU 전용 토픽 신설(봇 토큰·chat_id 재사용).
-  - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / **10분봉=912** / 30분봉=622 / (1시간봉=623 중단)
-  - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / **10분봉=404** / 30분봉=207 / (1시간봉=208 중단)
+  - 맥점신호 그룹(-1003964313330) XAU 토픽: 3분봉=620 / 5분봉=621 / **10분봉=912** / 30분봉=622 / (1시간봉 토픽 623 삭제)
+  - 막돌파신호 그룹(-1004425656249) XAU 토픽: 3분봉=205 / 5분봉=206 / **10분봉=404** / 30분봉=207 / (1시간봉 토픽 208 삭제)
   - XAU 10분봉 토픽 override는 `/etc/maekjeom-bot-xau.env`(THREAD_ID_10M=912/BO_THREAD_10M=404) + 드롭인.
 - **systemd 4개**: `maekjeom-bot-xau-3m/-xau-5m/-xau-10m/-xau-30m` (각 유닛 `Environment=SYMBOL=XAUUSDT`,`FEED_MODE=poll`; 10m·5m·30m은 `FRESH_BARS=3`). **xau-1h 중단(2026-08-18).**
 - **막돌파 창 `FRESH_BARS`(2026-08-14)**: XAU **5m·30m·1h 유닛에 `Environment=FRESH_BARS=3`**(15분 창 — 연속3봉 급락 포착). XAU 3m·BTC 전부는 미설정=기본 2봉. 코드는 각 CFG `fresh_bars=int(os.environ.get("FRESH_BARS","2"))`. FRESH_BARS는 어느 env파일에도 없어 inline `Environment=`로 안전(EnvironmentFile 충돌 없음). BTC 봇은 재시작 불필요(env 없어 동작 동일).
@@ -54,8 +54,8 @@ BTC와 **완전 동일한 막돌파/맥점 규칙**을 XAUUSDT 선물에 적용.
   검증: `sudo tr '\0' '\n' < /proc/$(systemctl show -p MainPID --value maekjeom-bot-xau-30m)/environ | grep THREAD_ID_30M` → 622.
   (`systemctl show -p Environment`는 inline만 보여줘 오해 유발 — 반드시 /proc/PID/environ로 실 런타임 확인.)
 - **주말 발송 억제 (2026-08-15)**: XAU 유닛에 `Environment=WEEKEND_OFF=1` → `alert_bot.weekend_muted()`가 **KST 토06:00~월08:00**(COMEX 금 휴장 근사) 발송 억제. 금 주말 유동성 급감(평일 1/10)·횡보라 스킵. 각 handle_tick upsert 직후 가드(df0는 폴링으로 최신 유지, 발송·평가만 스킵). BTC는 env 없어 24/7. 스케줄 조정은 weekend_muted() 함수.
-- **재시작**: `sudo systemctl restart maekjeom-bot-xau-3m maekjeom-bot-xau-5m maekjeom-bot-xau-30m maekjeom-bot-xau-1h`
-- **상태**: `systemctl is-active maekjeom-bot-xau-{3m,5m,30m,1h}` / `ps aux|grep ws_watch` → BTC4+XAU4 = **8개**
+- **재시작**: `sudo systemctl restart maekjeom-bot-xau-3m maekjeom-bot-xau-5m maekjeom-bot-xau-10m maekjeom-bot-xau-30m`
+- **상태**: `systemctl is-active maekjeom-bot-xau-{3m,5m,10m,30m}` / `ps aux|grep ws_watch` → BTC4+XAU4 = **8개**
 - ⚠️ **금 휴장 주의**: 금 무기한은 주말·연말 등 underlying 휴장 때 거래정지/데이터 갭 가능(BTC 24/7과 다름).
   주말 첫 운영 시 봉 연속성·오작동 관찰 필요.
 
