@@ -119,8 +119,11 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     elif rem_n == n_tot - 1:
         badge += f"🔥 <b>강신호</b> — 나머지 {rem_n}/{n_tot}\n"
     dir_line = f"<b>{side} {'예비신호 (잠정)' if provisional else '진입신호'}</b> — {SYMBOL} ({TF})\n"
-    top_warn = ("📏 [모든 것에 우선]\n"
-                "추세선 돌파가 먼저(델타지역 진입!) & 가로 매물대·채널·피보나치도 확인.\n")
+    top_warn = ("📏 [진입 전 점검]\n"
+                "1. X추세선 돌파 확인 후 델타지역 진입 (예측 금지)\n"
+                "2. 반드시 맥점 초입에서 진입\n"
+                "3. 추세(역추세/피보나치)는 큰형님(상위TF)으로 확인\n"
+                "4. 손절=전고/전저, 익절=X추세선 알람 (손실 짧게·수익 길게)\n")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if (mins_left is not None and mins_left >= 1) else "마감 임박"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
