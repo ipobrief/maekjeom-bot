@@ -160,9 +160,15 @@ class LiveState:
         self.bo_last_dir = None
         self.sent_div = set()
         self.last_recompute = 0.0
+        self.maek_last_sent = {}   # 방향별 마지막 맥점 발송 봉시각(같은방향 30분 스로틀)
 
     def same_dir_blocked(self, d, when):
         return d == self.last_dir
+
+    def maek_ok(self, d, when, minutes=30):
+        """맥점방 같은 방향: 마지막 발송 후 minutes분 지났으면 True(재발송 허용)."""
+        prev = self.maek_last_sent.get(d)
+        return prev is None or (when - prev) >= pd.Timedelta(minutes=minutes)
 
     def load_base(self):
         self.df0 = data.get_history(SYMBOL, TF, bars=600)
@@ -209,11 +215,13 @@ def handle_tick(st, k):
         must_ok = bool(d) and all((e["must_long"] if d == "LONG" else e["must_short"]).values())  # 잠정과 동일 필수2 가드
         if d and breakout and must_ok and getattr(handle_tick, "send_confirm", True):
             if aligned:
-                if st.sent_key != (d, when):
-                    emit(fmt_signal(e, when, provisional=False, active_dir=d))
-                    st.last_dir = d; st.sent_key = (d, when)
-                else:
+                if st.sent_key == (d, when):
                     print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
+                elif not st.maek_ok(d, when):
+                    print(f"[ws-3m] {kst(when):%m-%d %H:%M} 마감: 맥점방 30분내 같은방향 억제")
+                else:
+                    emit(fmt_signal(e, when, provisional=False, active_dir=d))
+                    st.last_dir = d; st.sent_key = (d, when); st.maek_last_sent[d] = when
             elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False, active_dir=d))
                 st.sent_bo = (d, when); st.bo_last_dir = d
@@ -265,8 +273,11 @@ def handle_tick(st, k):
         return
     card = fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d)
     if aligned:
-        emit(card)
-        st.alerted_dirs.add(d); st.sent_key = (d, when); st.last_dir = d
+        if st.maek_ok(d, when):
+            emit(card)
+            st.alerted_dirs.add(d); st.sent_key = (d, when); st.last_dir = d; st.maek_last_sent[d] = when
+        else:
+            st.alerted_dirs.add(d)   # 맥점방 30분내 같은방향 억제
     else:
         emit_breakout(card)
         st.sent_bo = (d, when); st.bo_last_dir = d
