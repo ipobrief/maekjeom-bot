@@ -135,10 +135,9 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         ab.bold_all(
             box + dir_line + badge + head +
             f"{ab.fmt_boss(e, long_, HTF_LABELS)}"
-            f"{fib_warn}"
-            f"━━━━━━━━━━━━━\n"
-            f"{top_warn}")
-        + f"\n<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
+            f"{fib_warn}")
+        + f"<blockquote><b>{top_warn.rstrip()}</b></blockquote>\n"
+        + f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         + f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
         + f"<i>판독이지 매매권유 아님. 최종 판단은 본인.</i>"
     )
