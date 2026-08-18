@@ -10,7 +10,32 @@ import pandas as pd
 BASE = "https://fapi.binance.com"
 
 
+def _resample_10m_rows(rows):
+    """5분봉 kline 리스트를 10분봉으로 합성(:00,:10,:20 정렬). 반환도 kline 리스트 형식."""
+    out = []
+    # 짝수(:00,:10,:20 시작) 5분봉부터 2개씩 묶음. open_time(ms) 기준 10분 경계.
+    i = 0
+    n = len(rows)
+    # 첫 5분봉이 10분 경계가 아니면 스킵(정렬 맞추기)
+    while i < n and (rows[i][0] // 60000) % 10 != 0:
+        i += 1
+    while i < n:
+        a = rows[i]
+        b = rows[i + 1] if i + 1 < n else None
+        o = float(a[1]); h = float(a[2]); l = float(a[3]); c = float(a[4]); v = float(a[5])
+        ct = a[6]
+        if b is not None:
+            h = max(h, float(b[2])); l = min(l, float(b[3])); c = float(b[4]); v += float(b[5]); ct = b[6]
+        out.append([a[0], f"{o}", f"{h}", f"{l}", f"{c}", f"{v}", ct, "0", 0, "0", "0", "0"])
+        i += 2
+    return out
+
+
 def fetch_klines(symbol="BTCUSDT", interval="15m", limit=1000, end_time=None):
+    if interval == "10m":
+        # 바이낸스 10분봉 미지원 → 5분봉 2배 받아 합성.
+        raw = fetch_klines(symbol, "5m", min(1000, limit * 2 + 4), end_time)
+        return _resample_10m_rows(raw)[-limit:]
     url = f"{BASE}/fapi/v1/klines"
     params = {"symbol": symbol, "interval": interval, "limit": limit}
     if end_time:
@@ -22,6 +47,12 @@ def fetch_klines(symbol="BTCUSDT", interval="15m", limit=1000, end_time=None):
 
 def get_history(symbol="BTCUSDT", interval="15m", bars=5000):
     """필요한 봉 수만큼 endTime 페이지네이션으로 거슬러 수집."""
+    if interval == "10m":
+        # 바이낸스 10분봉 미지원 → 5분봉 2개를 :00/:10/:20 경계로 합성.
+        df5 = get_history(symbol, "5m", bars * 2 + 20)
+        agg = df5.resample("10min", label="left", closed="left", origin="epoch").agg(
+            {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        return agg.dropna(subset=["open"]).tail(bars)
     all_rows = []
     end_time = None
     PER = 1000  # 선물 호출당 최대 1000봉

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""맥점 웹소켓 실시간 감시 — 30분봉. 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
-토큰 재사용: chris4h_bot(TELEGRAM_TOKEN_4H). 맥점방=TELEGRAM_THREAD_ID_30M, 막돌파방=TELEGRAM_BO_THREAD_30M.
-실행: python ws_watch_30m.py  [--no-confirm]
+"""맥점 실시간 감시 — 10분봉. 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅 + 스토 과열/침체 환경알림.
+10분봉은 바이낸스 미지원 → data.py가 5분봉 2개 합성. 토큰 재사용: chris1H_bot(TELEGRAM_TOKEN, →chris10m_bot).
+맥점방=TELEGRAM_THREAD_ID_10M, 막돌파방=TELEGRAM_BO_THREAD_10M.
+실행: python ws_watch_10m.py  [--no-confirm]  (XAU는 FEED_MODE=poll)
 """
 import os
 import sys
@@ -20,29 +21,29 @@ import divergence
 import indicators as ind
 
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등)
-TF = "30m"
+TF = "10m"
 # 스토 환경알림 종목 라벨(BTC/XAU 구분 — 같은 봇계정 공유라 텍스트로 구분 필요)
 SYM_TAG = "XAU" if SYMBOL.upper().startswith("XAU") else ("BTC" if SYMBOL.upper().startswith("BTC") else SYMBOL.upper().replace("USDT", ""))
 
 # 스토캐스틱 과열/침체 임계 (%K, 키움식 12/5/5)
 STOCH_HOT = 80    # 과열 진입 (≥80) → 곧 하락 조정 가능성 → 하위봉 숏 유리
 STOCH_COLD = 20   # 침체 진입 (≤20) → 곧 반등 가능성 → 하위봉 롱 유리
-HTF = ("1h", "2h", "4h")
-HTF_LABELS = ("1시간", "2시간", "4시간")
+HTF = ("30m", "1h", "2h")
+HTF_LABELS = ("30분", "1시간", "2시간")
 KST = ZoneInfo("Asia/Seoul")
 
 CFG = {
     "atr_period": 14, "rci_long": 26, "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 3,
     "atr_stop_mult": 2.0, "limit_offset": 0.0003, "trend_lookback": 100,
-    "fresh_bars": int(os.environ.get("FRESH_BARS", "2")),   # 막돌파 동시성 창(봉). XAU 상위봉=3, 기본2
+    "fresh_bars": int(os.environ.get("FRESH_BARS", "2")),   # 막돌파 동시성 창(봉). XAU=3, 기본2
 }
 
-WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")  # XAU=wss://fstream.binance.com
+WS_BASE = os.environ.get("WS_BASE", "wss://stream.binance.com:9443")  # 10분은 WS 미지원→XAU/BTC 모두 폴링 권장
 WS_URL = f"{WS_BASE}/ws/{SYMBOL.lower()}@kline_{TF}"
-HTF_REFRESH_SEC = 600
-RECOMPUTE_MIN_SEC = 120
-PROV_MIN_MINS_LEFT = 5
+HTF_REFRESH_SEC = 300
+RECOMPUTE_MIN_SEC = 60
+PROV_MIN_MINS_LEFT = 2
 
 
 def kst(ts):
@@ -50,18 +51,18 @@ def kst(ts):
 
 
 def _token():
-    return os.environ.get("TELEGRAM_TOKEN_4H") or os.environ.get("TELEGRAM_TOKEN_1D")
+    return os.environ.get("TELEGRAM_TOKEN")   # chris1H_bot 재사용(1h봇 중단)
 
 
 def tg_send(text):
     token = _token()
-    chat = os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D")
+    chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
-        print("⚠️ 30m봇 텔레그램 미설정 (콘솔만).")
+        print("⚠️ 10m봇 텔레그램 미설정 (콘솔만).")
         return False
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat, "text": ab.tg_html(text), "parse_mode": "HTML"}
-    thread = os.environ.get("TELEGRAM_THREAD_ID_30M")   # 맥점방 30분봉 토픽
+    thread = os.environ.get("TELEGRAM_THREAD_ID_10M")   # 맥점방 10분봉 토픽
     if thread:
         payload["message_thread_id"] = thread
     try:
@@ -74,7 +75,7 @@ def tg_send(text):
             pl["message_thread_id"] = thread
         return bool(requests.post(url, data=pl, timeout=10).json().get("ok"))
     except Exception as e:
-        print("❌ 텔레그램(30m) 오류:", e)
+        print("❌ 텔레그램(10m) 오류:", e)
         return False
 
 
@@ -84,12 +85,12 @@ def emit(text):
 
 
 def bo_ready():
-    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_30M"))
+    return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_10M"))
 
 def emit_breakout(text):
-    print("🎯[막돌파방-30m]", text[:50])
+    print("🎯[막돌파방-10m]", text[:50])
     return ab.tg_send_room(text, _token(), os.environ.get("TELEGRAM_CHAT_ID_BO"),
-                           os.environ.get("TELEGRAM_BO_THREAD_30M"))
+                           os.environ.get("TELEGRAM_BO_THREAD_10M"))
 
 
 def fmt_checks(checks):
@@ -100,15 +101,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
-    px = e["close"]
-    swing = e["swing_low"] if long_ else e["swing_high"]
-    bad = (swing != swing) or (long_ and swing >= px) or (not long_ and swing <= px)
-    if bad:
-        swing = px - e["atr"] * CFG["atr_stop_mult"] * (1 if long_ else -1)
-        sl_txt = f"{swing:,.1f} (직전저저점 불명확→ATR 대체)"
-    else:
-        sl_txt = f"{swing:,.1f} ({'직전저점' if long_ else '직전고점'})"
-    risk_pct = abs(px - swing) / px * 100
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
     aligned_bias = ab.boss_aligned(e, long_)   # 역추세 판정 = 큰형님(상위TF) 정렬 기준
@@ -154,7 +146,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
 
 
 def stoch_zone_of(k):
-    """스토 %K → 존 판정. 'hot'(과열)/'cold'(침체)/'neutral'."""
     if k is None or pd.isna(k):
         return "neutral"
     return "hot" if k >= STOCH_HOT else ("cold" if k <= STOCH_COLD else "neutral")
@@ -165,9 +156,7 @@ STOCH_LABELS = {"hot": "과열 진입", "cold": "침체 진입",
 
 
 def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
-    """30분봉 스토 과열/침체 진입·해소 알림 (상위TF 환경 필터).
-    zone: 'hot'(과열 진입)/'cold'(침체 진입)/'hot_clear'(과열 해소)/'cold_clear'(침체 해소).
-    provisional=True 면 형성봉 %K 기준 '잠정(미확정)' 알림(봉당 1회, 마감 때 확정/정정)."""
+    """10분봉 스토 과열/침체 진입·해소 알림 (하위봉 3·5분 환경 필터)."""
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}"
@@ -180,30 +169,30 @@ def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
         pv = ""
     if zone == "hot":
         return (
-            f"{pv}🥵 <b>[{SYM_TAG}] 30분봉 스토캐스틱 과열</b> (%K {k:.0f} ≥ {STOCH_HOT})\n"
+            f"{pv}🥵 <b>[{SYM_TAG}] 10분봉 스토캐스틱 과열</b> (%K {k:.0f} ≥ {STOCH_HOT})\n"
             f"━━━━━━━━━━━━━\n"
-            f"상위 30분봉이 <b>과열권</b> 진입 → 곧 하락 조정 가능성 ↑\n"
+            f"상위 10분봉이 <b>과열권</b> 진입 → 곧 하락 조정 가능성 ↑\n"
             f"👉 <b>3·5분봉에서 숏(SHORT) 신호가 나오면 숏 진입 유리 구간.</b>\n"
             f"{head}\n{tail}"
         )
     if zone == "cold":
         return (
-            f"{pv}🥶 <b>[{SYM_TAG}] 30분봉 스토캐스틱 침체</b> (%K {k:.0f} ≤ {STOCH_COLD})\n"
+            f"{pv}🥶 <b>[{SYM_TAG}] 10분봉 스토캐스틱 침체</b> (%K {k:.0f} ≤ {STOCH_COLD})\n"
             f"━━━━━━━━━━━━━\n"
-            f"상위 30분봉이 <b>침체권</b> 진입 → 곧 반등 가능성 ↑\n"
+            f"상위 10분봉이 <b>침체권</b> 진입 → 곧 반등 가능성 ↑\n"
             f"👉 <b>3·5분봉에서 롱(LONG) 신호가 나오면 롱 진입 유리 구간.</b>\n"
             f"{head}\n{tail}"
         )
     if zone == "hot_clear":
         return (
-            f"{pv}🥵➡️😌 <b>[{SYM_TAG}] 30분봉 스토 과열 해소</b> (%K {k:.0f} < {STOCH_HOT})\n"
+            f"{pv}🥵➡️😌 <b>[{SYM_TAG}] 10분봉 스토 과열 해소</b> (%K {k:.0f} < {STOCH_HOT})\n"
             f"━━━━━━━━━━━━━\n"
             f"과열권 이탈 → 상단 과열 식음. 하락 조정이 실제 진행되는 국면일 수 있음.\n"
             f"👉 숏 관점이면 하위봉 흐름 확인하며 유지/진행, 롱은 성급한 저점매수 주의.\n"
             f"{head}\n{tail}"
         )
     return (  # cold_clear
-        f"{pv}🥶➡️😌 <b>[{SYM_TAG}] 30분봉 스토 침체 해소</b> (%K {k:.0f} > {STOCH_COLD})\n"
+        f"{pv}🥶➡️😌 <b>[{SYM_TAG}] 10분봉 스토 침체 해소</b> (%K {k:.0f} > {STOCH_COLD})\n"
         f"━━━━━━━━━━━━━\n"
         f"침체권 이탈 → 하단 침체 벗어남. 반등이 실제 진행되는 국면일 수 있음.\n"
         f"👉 롱 관점이면 하위봉 흐름 확인하며 유지/진행, 숏은 성급한 고점매도 주의.\n"
@@ -212,11 +201,10 @@ def fmt_stoch_regime(zone, k, when, provisional=False, mins_left=None):
 
 
 def fmt_stoch_cancel(event, k, when):
-    """마감 결과 잠정신호가 미확정(되돌림)일 때 발송하는 정정(취소) 알림."""
     lab = STOCH_LABELS.get(event, event)
     head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)"
     return (
-        f"❌ <b>[정정·{SYM_TAG}] 30분봉 스토 {lab} 잠정신호 취소</b>\n"
+        f"❌ <b>[정정·{SYM_TAG}] 10분봉 스토 {lab} 잠정신호 취소</b>\n"
         f"━━━━━━━━━━━━━\n"
         f"봉 마감 %K {k:.0f} — 조건 미충족(마감 전 되돌림)으로 앞서 보낸 "
         f"<b>‘{lab}’ 잠정신호는 무효</b>입니다.\n"
@@ -242,9 +230,9 @@ class LiveState:
         self.bo_last_dir = None
         self.sent_div = set()
         self.last_recompute = 0.0
-        self.stoch_zone = None   # 마지막 '확정'(마감) 스토 존 — 진입/해소 판정 기준
-        self.prov_stoch_bar = None    # 잠정 스토 알림을 추적 중인 형성봉 timestamp
-        self.prov_stoch_events = set()  # 해당 형성봉에서 이미 보낸 잠정 이벤트(봉당 1회)
+        self.stoch_zone = None
+        self.prov_stoch_bar = None
+        self.prov_stoch_events = set()
 
     def same_dir_blocked(self, d, when):
         return d == self.last_dir
@@ -252,7 +240,6 @@ class LiveState:
     def load_base(self):
         self.df0 = data.get_history(SYMBOL, TF, bars=600)
         self._load_htf()
-        # 시작 시점의 스토 존을 기록해 두어 기존 상태로는 재알림하지 않음(신규 진입만 발송)
         try:
             k0, _ = ind.stochastic(self.df0)
             self.stoch_zone = stoch_zone_of(float(k0.iloc[-1]))
@@ -293,33 +280,55 @@ def handle_tick(st, k):
         st.maybe_refresh_htf()
         row, when, sig = st.evaluate(-1)
         e = enrich(row, sig)
-        d = e.get("direction_active", e["direction"])   # 확정 막돌파: 에지 아닌 레벨+fresh기준(2026-08-07)
+        d = e.get("direction_active", e["direction"])
         breakout = bool(d) and e.get("fresh_long" if d == "LONG" else "fresh_short", 0) >= 3
         aligned = breakout and ((e["r1_long"] and e["r2_long"]) if d == "LONG"
                                 else (e["r1_short"] and e["r2_short"]))
-        must_ok = bool(d) and all((e["must_long"] if d == "LONG" else e["must_short"]).values())  # 잠정과 동일 필수2 가드
+        must_ok = bool(d) and all((e["must_long"] if d == "LONG" else e["must_short"]).values())
         if d and breakout and must_ok and getattr(handle_tick, "send_confirm", True):
             if aligned:
                 if st.sent_key != (d, when):
                     emit(fmt_signal(e, when, provisional=False, active_dir=d))
                     st.last_dir = d; st.sent_key = (d, when)
                 else:
-                    print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
+                    print(f"[ws-10m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
             elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False, active_dir=d))
                 st.sent_bo = (d, when); st.bo_last_dir = d
             else:
-                print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
+                print(f"[ws-10m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
         else:
             reason = ("신호없음" if not d else "막돌파아님" if not breakout else "필수미충족" if not must_ok else "억제")
-            print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: {reason} | "
+            print(f"[ws-10m] {kst(when):%m-%d %H:%M} 마감: {reason} | "
                   f"dir={e['direction']}/act={e.get('direction_active')} "
                   f"freshL={e.get('fresh_long')} freshS={e.get('fresh_short')} "
                   f"mustL={sum(e['must_long'].values())} mustS={sum(e['must_short'].values())}")
         divergence.check(st.df0, SYMBOL, TF, _token(),
-                         os.environ.get("TELEGRAM_CHAT_ID_4H") or os.environ.get("TELEGRAM_CHAT_ID_1D"),
-                         os.environ.get("TELEGRAM_THREAD_ID_30M"), st.sent_div)
-        # (스토 과열/침체 알림은 2026-08-18 10분봉 봇으로 이동)
+                         os.environ.get("TELEGRAM_CHAT_ID"),
+                         os.environ.get("TELEGRAM_THREAD_ID_10M"), st.sent_div)
+        # ── 10분봉 스토 과열/침체 알림(확정): 진입 1회 + 해소 1회 + 잠정 정정 ──
+        k_now = float(sig["k"].iloc[-1]) if not pd.isna(sig["k"].iloc[-1]) else None
+        zone = stoch_zone_of(k_now)
+        prev_zone = st.stoch_zone
+        st.stoch_zone = zone
+        if getattr(handle_tick, "send_confirm", True) and k_now is not None:
+            confirmed = set()
+            if zone == "hot" and prev_zone != "hot":
+                confirmed.add("hot")
+            elif zone == "cold" and prev_zone != "cold":
+                confirmed.add("cold")
+            if prev_zone == "hot" and zone != "hot":
+                confirmed.add("hot_clear")
+            elif prev_zone == "cold" and zone != "cold":
+                confirmed.add("cold_clear")
+            for ev in ("hot", "cold", "hot_clear", "cold_clear"):
+                if ev in confirmed:
+                    emit(fmt_stoch_regime(ev, k_now, when))
+            if st.prov_stoch_bar == when:
+                for ev in st.prov_stoch_events - confirmed:
+                    emit(fmt_stoch_cancel(ev, k_now, when))
+        st.prov_stoch_bar = None
+        st.prov_stoch_events = set()
         st.alerted_bar = None
         st.alerted_dirs = set()
         return
@@ -332,6 +341,34 @@ def handle_tick(st, k):
     if when != st.alerted_bar:
         st.alerted_bar = when
         st.alerted_dirs = set()
+
+    # ── 스토 과열/침체 잠정(미확정) 알림: 형성봉 %K 기준, 봉당 1회 ──
+    if getattr(handle_tick, "send_confirm", True):
+        kv = sig["k"].iloc[-1]
+        k_prov = float(kv) if not pd.isna(kv) else None
+        if k_prov is not None:
+            if st.prov_stoch_bar != when:
+                st.prov_stoch_bar = when
+                st.prov_stoch_events = set()
+            pzone = stoch_zone_of(k_prov)
+            base = st.stoch_zone
+            stoch_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+            stoch_left = max(0, stoch_left)
+            if stoch_left >= PROV_MIN_MINS_LEFT:
+                cand = []
+                if pzone == "hot" and base != "hot":
+                    cand.append("hot")
+                elif pzone == "cold" and base != "cold":
+                    cand.append("cold")
+                if base == "hot" and pzone != "hot":
+                    cand.append("hot_clear")
+                elif base == "cold" and pzone != "cold":
+                    cand.append("cold_clear")
+                for ev in cand:
+                    if ev not in st.prov_stoch_events:
+                        emit(fmt_stoch_regime(ev, k_prov, when,
+                                              provisional=True, mins_left=stoch_left))
+                        st.prov_stoch_events.add(ev)
 
     d = e.get("direction_active", e["direction"])
     if not d:
@@ -369,7 +406,7 @@ async def run(send_confirm=True):
     st = LiveState()
     print("기준 히스토리 로드 중…")
     st.load_base()
-    print(f"📡 맥점 웹소켓 감시 시작 — {SYMBOL} {TF} (맥점방/막돌파방)")
+    print(f"📡 맥점 감시 시작 — {SYMBOL} {TF} (맥점방/막돌파방)")
     while True:
         try:
             async with websockets.connect(WS_URL, ping_interval=20, ping_timeout=20) as ws:
@@ -392,7 +429,7 @@ async def run(send_confirm=True):
 if __name__ == "__main__":
     send_confirm = "--no-confirm" not in sys.argv
     try:
-        if os.environ.get("FEED_MODE") == "poll":   # 선물 WS 차단 환경(XAU) → REST 폴링
+        if os.environ.get("FEED_MODE") == "poll":   # 선물 WS 차단/10분 합성 환경 → REST 폴링
             import poll_feed
             poll_feed.run_poll(sys.modules[__name__], send_confirm)
         else:
