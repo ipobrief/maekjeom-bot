@@ -20,8 +20,8 @@ import divergence
 
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")   # env로 종목 교체(XAUUSDT 등)
 TF = "5m"
-HTF = ("30m", "1h", "2h")
-HTF_LABELS = ("30분", "1시간", "2시간")
+HTF = ("10m", "30m", "1h")
+HTF_LABELS = ("10분", "30분", "1시간")
 KST = ZoneInfo("Asia/Seoul")
 
 CFG = {
