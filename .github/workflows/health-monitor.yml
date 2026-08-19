@@ -51,7 +51,7 @@ jobs:
           elif [ "${OUT#OK}" != "$OUT" ]; then
             # OUT 이 OK 로 시작 → 정상
             if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              send "✅ [맥점봇 감시] 정상 작동 중 — 3m·5m·30m·1h 봇 모두 active (수동 점검)."
+              send "✅ [맥점봇 감시] 정상 작동 중 — 3m·5m·10m·30m 봇 모두 active (수동 점검)."
             fi
           else
             send "🔴 [맥점봇 감시] 봇 꺼짐 — ${OUT} (서버는 살아있음, systemd 재시작 실패 의심)."
