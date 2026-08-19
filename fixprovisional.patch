@@ -1,0 +1,92 @@
+From 442e98ae07f9182a3584df3e222784e41bd975c6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 27 Jun 2026 09:03:23 +0000
+Subject: [PATCH] =?UTF-8?q?=EC=9E=A0=EC=A0=95=EC=8B=A0=ED=98=B8=20?=
+ =?UTF-8?q?=EB=B2=84=EA=B7=B8=20=EC=88=98=EC=A0=95:=20=ED=95=84=EC=88=98?=
+ =?UTF-8?q?=EC=A1=B0=EA=B1=B4=20=EB=AF=B8=EC=B6=A9=EC=A1=B1=20=EC=8B=9C=20?=
+ =?UTF-8?q?=EC=96=B5=EC=A0=9C,=20fmt=5Fsignal=20=EB=B0=A9=ED=96=A5=20?=
+ =?UTF-8?q?=EC=9D=B8=EC=9E=90=20=EC=A0=84=EB=8B=AC?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ alert_bot.py   |  4 ++--
+ ws_watch.py    |  7 ++++++-
+ ws_watch_1m.py | 10 +++++++---
+ 3 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/alert_bot.py b/alert_bot.py
+index a11e9a5..9fddcc2 100644
+--- a/alert_bot.py
++++ b/alert_bot.py
+@@ -111,8 +111,8 @@ def fmt_checks(checks):
+     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
+ 
+ 
+-def fmt_signal(e, when, provisional=False, mins_left=None):
+-    d = e["direction"]
++def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
++    d = active_dir if active_dir is not None else e["direction"]
+     long_ = d == "LONG"
+     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
+     px = e["close"]
+diff --git a/ws_watch.py b/ws_watch.py
+index f2e092c..42910c4 100644
+--- a/ws_watch.py
++++ b/ws_watch.py
+@@ -111,12 +111,17 @@ def handle_tick(st, k):
+     d = e.get("direction_active", e["direction"])
+     # 같은 봉·같은 방향은 한 번만 (임계선 깜빡임 중복 방지). 되돌림 메시지는 보내지 않음.
+     if d and d not in st.alerted_dirs:
++        # 필수조건(선행스팬1·20일선)이 실제로 충족된 경우만 발송
++        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
++        if not must_ok:
++            st.alerted_dirs.add(d)
++            return
+         mins_left = (when + pd.Timedelta(ab.TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+         mins_left = max(0, mins_left)
+         if mins_left < PROV_MIN_MINS_LEFT:
+             st.alerted_dirs.add(d)
+             return
+-        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left))
++        ab.emit(ab.fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
+         st.alerted_dirs.add(d)
+ 
+ 
+diff --git a/ws_watch_1m.py b/ws_watch_1m.py
+index baf3812..420ad1f 100644
+--- a/ws_watch_1m.py
++++ b/ws_watch_1m.py
+@@ -103,8 +103,8 @@ def fmt_checks(checks):
+     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
+ 
+ 
+-def fmt_signal(e, when, provisional=False, mins_left=None):
+-    d = e["direction"]
++def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
++    d = active_dir if active_dir is not None else e["direction"]
+     long_ = d == "LONG"
+     side = "🟢 롱(LONG)" if long_ else "🔴 숏(SHORT)"
+     px = e["close"]
+@@ -220,12 +220,16 @@ def handle_tick(st, k):
+         st.alerted_dirs = set()
+     d = e.get("direction_active", e["direction"])
+     if d and d not in st.alerted_dirs:
++        must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
++        if not must_ok:
++            st.alerted_dirs.add(d)
++            return
+         mins_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
+         mins_left = max(0, mins_left)
+         if mins_left < PROV_MIN_MINS_LEFT:
+             st.alerted_dirs.add(d)
+             return
+-        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left))
++        emit(fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d))
+         st.alerted_dirs.add(d)
+ 
+ 
+-- 
+2.43.0
+

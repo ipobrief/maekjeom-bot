@@ -243,6 +243,7 @@ class LiveState:
         self.sent_div = set()
         self.last_recompute = 0.0
         self.maek_last_sent = {}   # 방향별 마지막 맥점 발송 봉시각(같은방향 30분 스로틀)
+        self.bo_last_sent = {}     # 방향별 마지막 막돌파 발송 봉시각(같은방향 30분 스로틀)
         self.stoch_zone = None   # 마지막 '확정'(마감) 스토 존 — 진입/해소 판정 기준
         self.prov_stoch_bar = None    # 잠정 스토 알림을 추적 중인 형성봉 timestamp
         self.prov_stoch_events = set()  # 해당 형성봉에서 이미 보낸 잠정 이벤트(봉당 1회)
@@ -253,6 +254,11 @@ class LiveState:
     def maek_ok(self, d, when, minutes=30):
         """맥점방 같은 방향: 마지막 발송 후 minutes분 지났으면 True(재발송 허용)."""
         prev = self.maek_last_sent.get(d)
+        return prev is None or (when - prev) >= pd.Timedelta(minutes=minutes)
+
+    def bo_ok(self, d, when, minutes=30):
+        """막돌파방 같은 방향: 마지막 발송 후 minutes분 지났으면 True(재발송 허용)."""
+        prev = self.bo_last_sent.get(d)
         return prev is None or (when - prev) >= pd.Timedelta(minutes=minutes)
 
     def load_base(self):
@@ -313,9 +319,9 @@ def handle_tick(st, k):
                 else:
                     emit(fmt_signal(e, when, provisional=False, active_dir=d))
                     st.last_dir = d; st.sent_key = (d, when); st.maek_last_sent[d] = when
-            elif bo_ready() and d != st.bo_last_dir and st.sent_bo != (d, when):
+            elif bo_ready() and st.sent_bo != (d, when) and st.bo_ok(d, when):
                 emit_breakout(fmt_signal(e, when, provisional=False, active_dir=d))
-                st.sent_bo = (d, when); st.bo_last_dir = d
+                st.sent_bo = (d, when); st.bo_last_dir = d; st.bo_last_sent[d] = when
             else:
                 print(f"[ws-30m] {kst(when):%m-%d %H:%M} 마감: 막돌파방 억제")
         else:
@@ -351,7 +357,7 @@ def handle_tick(st, k):
     if aligned:
         gate = d not in st.alerted_dirs
     else:
-        gate = d != st.bo_last_dir and st.sent_bo != (d, when)
+        gate = st.sent_bo != (d, when) and st.bo_ok(d, when)
     if not gate:
         return
     must_ok = all((e["must_long"] if d == "LONG" else e["must_short"]).values())
@@ -372,7 +378,7 @@ def handle_tick(st, k):
             st.alerted_dirs.add(d)   # 맥점방 30분내 같은방향 억제
     else:
         emit_breakout(card)
-        st.sent_bo = (d, when); st.bo_last_dir = d
+        st.sent_bo = (d, when); st.bo_last_dir = d; st.bo_last_sent[d] = when
 
 
 async def run(send_confirm=True):
