@@ -289,11 +289,13 @@ def explain(sig_row, cfg) -> dict:
     rs6 = f"RCI {rrel} & 0선 {'이탈' if r9v < 0 else '위'}({r9v:.0f})"
     rl7 = f"RCI 그린 0선 {'돌파' if gv > 0 else '아래'}({gv:.0f})"
     rs7 = f"RCI 그린 0선 {'이탈' if gv < 0 else '위'}({gv:.0f})"
-    # MACD 라벨: 크로스(GC/DC)+방향(↑/↓)+0선 위치(값). 조건 판정은 GC/DC만(0선은 정보 표시)
+    # MACD 라벨: 통과조건은 크로스(GC/DC)뿐 → 앞에 표기. 0선 위치는 정보라 괄호로 분리
+    # (스토·RCI는 0선/50이 실제 통과조건이라 '&'로 붙지만, MACD는 방향만 보므로 '(정보)'로 구분).
     mlv = r["macd_line"]; msv = r.get("macd_sig", float("nan"))
     mcs = ("GC" if mlv > msv else "DC") + ("↑" if bool(r.get("macd_up", False)) else "↓")
-    ml4 = f"MACD {mcs} & 0선 {'돌파' if mlv > 0 else '아래'}({mlv:.0f})"
-    ms4 = f"MACD {mcs} & 0선 {'이탈' if mlv < 0 else '위'}({mlv:.0f})"
+    mpos = "0선 위" if mlv > 0 else "0선 아래"
+    ml4 = f"MACD {mcs} (선 {mlv:.0f}·{mpos})"
+    ms4 = f"MACD {mcs} (선 {mlv:.0f}·{mpos})"
     must_long = {
         "[필수] 종가 > 선행스팬1": bool(r["LM1"]),
         "[필수] 20일선 위": bool(r["LM2"]),
