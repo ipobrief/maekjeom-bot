@@ -188,8 +188,8 @@ def bold_all(text):
 
 
 def fmt_boss(e, long_, htf_labels):
-    """큰형님 우선의 법칙(책 부록): 상위 3개 TF 각각 MACD(GC)·스토(50)가 신호 방향과 정렬됐는지.
-    표시 전용(발송 억제 아님). 롱=MACD GC & 스토50위 / 숏=거울."""
+    """큰형님 우선의 법칙(책 부록): 상위 3개 TF 각각 MACD·스토 크로스가 신호 방향과 정렬됐는지.
+    표시 전용(발송 억제 아님). 롱=MACD GC(선>시그널) & 스토 GC(%K>%D) / 숏=거울(DC). (2026-08-20 0선/50 위치→크로스)"""
     m0 = e.get("boss_m0") or [False, False, False]
     st = e.get("boss_st") or [False, False, False]
 
@@ -202,8 +202,8 @@ def fmt_boss(e, long_, htf_labels):
 
 
 def boss_aligned(e, long_, need=4):
-    """큰형님(상위3TF MACD 0선·스토 50) 6개 항목 중 need개 이상 신호방향 정렬이면 True(추세정렬).
-    미만이면 역추세 경고. 역추세 판정을 큰형님 기준으로 통일(2026-08-18)."""
+    """큰형님(상위3TF MACD GC·스토 GC 크로스) 6개 항목 중 need개 이상 신호방향 정렬이면 True(추세정렬).
+    미만이면 역추세 경고. 역추세 판정을 큰형님 기준으로 통일(2026-08-18), 기준은 크로스로 변경(2026-08-20)."""
     m0 = e.get("boss_m0") or [False, False, False]
     st = e.get("boss_st") or [False, False, False]
     cnt = sum((m0[i] if long_ else not m0[i]) + (st[i] if long_ else not st[i]) for i in range(3))

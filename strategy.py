@@ -107,11 +107,13 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     bd = align_bias(tf_bias(df1d), d.index)
     bias = b1 * 1.0 + b4 * 1.5 + bd * 2.0
 
-    # ── 큰형님 우선의 법칙(책 부록): 상위 3개 TF(df1h·df4h·df1d) 각각 MACD GC·스토50 확인 ──
+    # ── 큰형님 우선의 법칙(책 부록): 상위 3개 TF(df1h·df4h·df1d) 각각 MACD·스토 크로스 확인 ──
+    #   2026-08-20 사용자 변경: 0선/50선 '위치' → GC/DC '크로스' 기준.
+    #   롱=MACD GC(선>시그널) & 스토 GC(%K>%D) / 숏=거울(DC).
     def _boss(dfh):
-        ml, ms, _ = ind.macd(dfh["close"]); kk, _ = ind.stochastic(dfh)
-        m0 = align_bias((ml > 0).astype(float), d.index) >= 0.5    # MACD 0선 위 (큰형님=책 p190)
-        st = align_bias((kk > 50).astype(float), d.index) >= 0.5   # 스토 50 위
+        ml, ms, _ = ind.macd(dfh["close"]); kk, kd = ind.stochastic(dfh)
+        m0 = align_bias((ml > ms).astype(float), d.index) >= 0.5   # MACD GC(선>시그널)
+        st = align_bias((kk > kd).astype(float), d.index) >= 0.5   # 스토 GC(%K>%D)
         return m0, st
     b1_m0, b1_st = _boss(df1h)
     b2_m0, b2_st = _boss(df4h)
