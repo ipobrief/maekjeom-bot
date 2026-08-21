@@ -225,8 +225,17 @@ def pullback_note(e, long_):
     if tm < 2:
         return ""
     strong = (tm == 3 and ts >= 2)
-    return (f"🏹 <b>{'강한 ' if strong else ''}눌림목 공략 — 큰형님 "
+    head = (f"🏹 <b>{'강한 ' if strong else ''}눌림목 공략 — 큰형님 "
             f"{'상승' if long_ else '하락'}추세 유지 중 되돌림 재개</b>\n")
+    # 구조 확인 디테일: 직전저점(고점) 유지 · 피보 되돌림% · 20MA 지지
+    pb = e.get("pb") or {}
+    sfx = "long" if long_ else "short"
+    hl = pb.get("hl_" + sfx); fib = pb.get("fib_" + sfx); ma = pb.get("ma_" + sfx)
+    fp = pb.get("fibpct_" + sfx, float("nan"))
+    ck = lambda b: "✅" if b else "❌"
+    fibtxt = f"피보 {fp:.0f}% {ck(fib)}" if fp == fp else f"피보 {ck(fib)}"
+    detail = f"   └ {'저점유지' if long_ else '고점유지'} {ck(hl)} · {fibtxt} · 20MA지지 {ck(ma)}\n"
+    return head + detail
 
 
 def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):

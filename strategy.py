@@ -89,6 +89,57 @@ def nwave_flags(df, L=3, R=3, lookback=120, fib_lo=0.236, fib_hi=0.786, only_las
     return pd.Series(nl, index=df.index), pd.Series(ns, index=df.index)
 
 
+def pullback_structure(df, ma, L=3, R=3, lookback=120, only_last=90, ma_band=0.004, touch=5):
+    """구조적 눌림목 확인(표시용, 2026-08-21). 미래참조 방지로 right봉 확정된 피벗만 사용.
+    각 봉에 대해 롱/숏 3개 확인 반환:
+      ① HL/LH: 직전저점(고점) 안 깸 — 스윙저점 상승(롱)/스윙고점 하락(숏) + 현재가 유지
+      ② FIB: 최근 레그의 되돌림이 23.6~78.6%(황금존) — 얕지도 깊지도 않은 건강한 눌림 (+되돌림%)
+      ③ MA: 20MA 지지 — 롱=종가 MA 위 & 최근 저점이 MA 근처까지 눌림 / 숏 거울
+    """
+    n = len(df)
+    close = df["close"].values; low = df["low"].values; high = df["high"].values
+    slp = ind.swing_low(df, L, R).values      # 스윙저점 가격(피벗 위치), 그 외 NaN
+    shp = ind.swing_high(df, L, R).values     # 스윙고점 가격
+    mav = np.asarray(ma.values, dtype=float)
+    out = {k: np.zeros(n, dtype=bool) for k in
+           ("hl_long", "fib_long", "ma_long", "hl_short", "fib_short", "ma_short")}
+    fpL = np.full(n, np.nan); fpS = np.full(n, np.nan)
+    start = max(0, n - only_last)
+    for i in range(start, n):
+        lo0 = max(0, i - lookback)
+        # 확정 피벗만: 피벗 j는 j+R봉에 확정 → j <= i-R 인 것만 사용
+        lows = [j for j in range(lo0, i - R + 1) if slp[j] == slp[j]]
+        highs = [j for j in range(lo0, i - R + 1) if shp[j] == shp[j]]
+        # ① 롱 HL / 숏 LH
+        if len(lows) >= 2:
+            out["hl_long"][i] = low[lows[-1]] > low[lows[-2]] and close[i] > low[lows[-1]]
+        if len(highs) >= 2:
+            out["hl_short"][i] = high[highs[-1]] < high[highs[-2]] and close[i] < high[highs[-1]]
+        # ② 롱 피보(최근 스윙저점 A→그 뒤 스윙고점 B 상승레그)
+        if lows and highs and highs[-1] > lows[-1]:
+            A = low[lows[-1]]; B = high[highs[-1]]
+            if B > A:
+                r = (B - close[i]) / (B - A); fpL[i] = r * 100
+                out["fib_long"][i] = 0.236 <= r <= 0.786
+        # ② 숏 피보(최근 스윙고점 A→그 뒤 스윙저점 B 하락레그, 되돌림 위로)
+        if lows and highs and lows[-1] > highs[-1]:
+            A = high[highs[-1]]; B = low[lows[-1]]
+            if A > B:
+                r = (close[i] - B) / (A - B); fpS[i] = r * 100
+                out["fib_short"][i] = 0.236 <= r <= 0.786
+        # ③ MA 지지
+        m = mav[i]
+        if m == m and m > 0:
+            lo_touch = np.nanmin(low[max(0, i - touch + 1):i + 1])
+            hi_touch = np.nanmax(high[max(0, i - touch + 1):i + 1])
+            out["ma_long"][i] = close[i] >= m and lo_touch <= m * (1 + ma_band)
+            out["ma_short"][i] = close[i] <= m and hi_touch >= m * (1 - ma_band)
+    idx = df.index
+    return {**{k: pd.Series(v, index=idx) for k, v in out.items()},
+            "fibpct_long": pd.Series(fpL, index=idx),
+            "fibpct_short": pd.Series(fpS, index=idx)}
+
+
 def build_signals(df15, df1h, df4h, df1d, cfg):
     """15분봉 기준 신호 생성 — 선행스팬1 돌파 추세추종 규칙.
     롱 진입 5조건(AND): 종가>선행스팬1, MACD GC/0선위, 스토%K>50,
@@ -129,6 +180,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     # ich["senkou1"]은 shift(26)된 26봉 전 과거값이라 종가 비교에 부적합(회원님 규칙).
     senkou1 = (tenkan + kijun) / 2
     ma20 = ind.sma(d["close"], 20)
+    # 구조적 눌림목 확인(표시용): 직전저점(HL)·피보 되돌림·20MA 지지
+    pbs = pullback_structure(d, ma20, cfg.get("pivot_left", 3), cfg.get("pivot_right", 3))
     tp = cfg.get("trend_pivot", 5)
     res_line, res_slope = ind.trendline_series(d, "res", tp, tp, with_slope=True)  # 하락 대각선(고점2점)
     sup_line, sup_slope = ind.trendline_series(d, "sup", tp, tp, with_slope=True)  # 상승 대각선(저점2점)
@@ -257,6 +310,8 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["boss_m0_1"], out["boss_m0_2"], out["boss_m0_3"] = b1_m0, b2_m0, b3_m0
     out["boss_st_1"], out["boss_st_2"], out["boss_st_3"] = b1_st, b2_st, b3_st
     out["nwave_long"], out["nwave_short"] = nwave_long, nwave_short
+    for k, v in pbs.items():
+        out["pb_" + k] = v
     out["long"], out["short"] = long_entry, short_entry
     out["long_all"], out["short_all"] = long_all_p, short_all_p  # 잠정용
     out["long_exit"], out["short_exit"] = long_exit, short_exit
@@ -347,6 +402,10 @@ def explain(sig_row, cfg) -> dict:
         "boss_st": [bool(r.get("boss_st_1")), bool(r.get("boss_st_2")), bool(r.get("boss_st_3"))],
         "nwave_long": bool(r.get("nwave_long", False)),
         "nwave_short": bool(r.get("nwave_short", False)),
+        "pb": {"hl_long": bool(r.get("pb_hl_long", False)), "fib_long": bool(r.get("pb_fib_long", False)),
+               "ma_long": bool(r.get("pb_ma_long", False)), "fibpct_long": r.get("pb_fibpct_long", float("nan")),
+               "hl_short": bool(r.get("pb_hl_short", False)), "fib_short": bool(r.get("pb_fib_short", False)),
+               "ma_short": bool(r.get("pb_ma_short", False)), "fibpct_short": r.get("pb_fibpct_short", float("nan"))},
         "k": r["k"], "rci_long": r["rci_long"], "rci_s": r.get("rci_s", float("nan")),
         "fresh_long": int(0 if pd.isna(r.get("fresh_long", 0)) else r.get("fresh_long", 0)),
         "fresh_short": int(0 if pd.isna(r.get("fresh_short", 0)) else r.get("fresh_short", 0)),
