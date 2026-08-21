@@ -111,7 +111,6 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     risk_pct = abs(px - swing) / px * 100
     must = e["must_long"] if long_ else e["must_short"]
     rem = e["rem_long"] if long_ else e["rem_short"]
-    aligned_bias = ab.boss_aligned(e, long_)   # 역추세 판정 = 큰형님(상위TF) 정렬 기준
     badge = ""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     aligned = fresh >= 3 and ((e.get("r1_long") and e.get("r2_long")) if long_
@@ -132,14 +131,14 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     top_warn = ("📏 [진입 전 점검]\n"
                 "1. X추세선 돌파 확인 후 델타지역 진입 (예측 금지)\n"
                 "2. 반드시 맥점 초입에서 진입\n"
-                "3. 추세(역추세/피보나치)는 큰형님(상위TF)으로 확인\n"
+                "3. 추세·눌림목 방향은 큰형님(상위TF)으로 확인\n"
                 "4. 손절=전고/전저, 익절=X추세선 알람 (손실 짧게·수익 길게)\n")
     if provisional:
         left = f"마감 {mins_left:.0f}분 전" if mins_left is not None else "마감 전"
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
-    fib_warn = "" if aligned_bias else "⚠️ <b>역추세 — 큰 추세의 되돌림일 수 있음. 다이버전스 확인 & 피보나치로 타점 계산 후 신중 진입!</b>\n"
+    fib_warn = ab.pullback_note(e, long_)   # 추세방향 눌림목 표시(역추세 경고 대체)
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
         ab.bold_all(

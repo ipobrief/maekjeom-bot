@@ -210,6 +210,25 @@ def boss_aligned(e, long_, need=4):
     return cnt >= need
 
 
+def pullback_note(e, long_):
+    """추세방향 눌림목 표시(2026-08-21, 역추세 경고 대체).
+    상위TF MACD 0선(=추세방향)이 신호방향으로 다수(≥2/3) 정렬 + 막돌파(fresh≥3, 되돌림 재개)면
+    '추세 유지 중 눌림목 공략' 진입으로 안내. 큰형님 스토(50)까지 다수면 '강한' 눌림목.
+    추세 불명확(MACD 다수 반대)이면 표시 없음(역추세 경고는 제거)."""
+    fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
+    if fresh < 3:
+        return ""
+    m0 = e.get("boss_m0") or [False, False, False]
+    st = e.get("boss_st") or [False, False, False]
+    tm = sum((m0[i] if long_ else not m0[i]) for i in range(3))   # MACD 0선 추세 정렬 수
+    ts = sum((st[i] if long_ else not st[i]) for i in range(3))   # 스토 50 정렬 수
+    if tm < 2:
+        return ""
+    strong = (tm == 3 and ts >= 2)
+    return (f"🏹 <b>{'강한 ' if strong else ''}눌림목 공략 — 큰형님 "
+            f"{'상승' if long_ else '하락'}추세 유지 중 되돌림 재개</b>\n")
+
+
 def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     d = active_dir if active_dir is not None else e["direction"]
     long_ = d == "LONG"
