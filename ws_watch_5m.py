@@ -134,10 +134,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     fib_warn = ab.pullback_note(e, long_)   # 추세방향 눌림목 표시(역추세 경고 대체)
     box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
-        ab.bold_all(
-            box + dir_line + badge + head +
-            f"{ab.fmt_boss(e, long_, HTF_LABELS)}"
-            f"{fib_warn}")
+        ab.bold_all(box + dir_line + badge + head).rstrip() + "\n"
+        + f"<blockquote>{ab.bold_all(ab.fmt_boss(e, long_, HTF_LABELS) + fib_warn).rstrip()}</blockquote>\n"
         + f"<blockquote><b>{top_warn.rstrip()}</b></blockquote>\n"
         + f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
         + f"<b>나머지 {sum(rem.values())}/{len(rem)} (≥{CFG['rem_req']} 필요)</b>\n{fmt_checks(rem)}\n"
