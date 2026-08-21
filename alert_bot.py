@@ -225,7 +225,8 @@ def pullback_note(e, long_):
     if tm < 2:
         return ""
     strong = (tm == 3 and ts >= 2)
-    head = (f"🏹 <b>{'강한 ' if strong else ''}눌림목 공략 — 큰형님 "
+    name = "눌림목" if long_ else "반등목"   # 롱=눌림목(상승중 눌림) / 숏=반등목(하락중 반등)
+    head = (f"🏹 <b>{'강한 ' if strong else ''}{name} 공략 — 큰형님 "
             f"{'상승' if long_ else '하락'}추세 유지 중 되돌림 재개</b>\n")
     # 구조 확인 디테일: 직전저점(고점) 유지 · 피보 되돌림% · 20MA 지지
     pb = e.get("pb") or {}
