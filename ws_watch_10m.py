@@ -317,7 +317,7 @@ def handle_tick(st, k):
         divergence.check(st.df0, SYMBOL, TF, _token(),
                          os.environ.get("TELEGRAM_CHAT_ID"),
                          os.environ.get("TELEGRAM_THREAD_ID_10M"), st.sent_div)
-        # ── 10분봉 스토 과열/침체 알림(확정): 진입 1회 + 해소 1회 + 잠정 정정 ──
+        # ── 10분봉 스토 과열/침체 알림(확정): 진입 1회 + 해소 1회 (잠정 취소 발송 없음, 2026-08-22) ──
         k_now = float(sig["k"].iloc[-1]) if not pd.isna(sig["k"].iloc[-1]) else None
         zone = stoch_zone_of(k_now)
         prev_zone = st.stoch_zone
