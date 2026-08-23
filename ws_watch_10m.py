@@ -335,9 +335,7 @@ def handle_tick(st, k):
             for ev in ("hot", "cold", "hot_clear", "cold_clear"):
                 if ev in confirmed:
                     emit(fmt_stoch_regime(ev, k_now, when))
-            if st.prov_stoch_bar == when:
-                for ev in st.prov_stoch_events - confirmed:
-                    emit(fmt_stoch_cancel(ev, k_now, when))
+            # 잠정신호 취소(정정) 발송 제거(2026-08-22 사용자 요청) — 취소 알림 안 보냄
         st.prov_stoch_bar = None
         st.prov_stoch_events = set()
         st.alerted_bar = None
