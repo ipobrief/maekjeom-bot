@@ -5,13 +5,13 @@
 - IP: 161.33.150.142
 - 접속: ssh -i C:\Users\USER\.ssh\id_ed25519 ubuntu@161.33.150.142
 
-## 봇 구성 (2026-08-18 시간대: 3m·5m·10m·30m. 1h·15m·4h·1d 중단)
+## 봇 구성 (2026-08-23 활성: 3m·5m·10m. 30m 신호중단(stop+disable, 방 유지). 1h·15m·4h·1d 중단)
 ⚠️ **2026-08-15: BTC·XAU 8봇 전부 선물 REST 폴링(fapi)로 통일** (`FEED_MODE=poll`). 기존 BTC는 현물 WS 틱+선물 과거봉 **하이브리드**였는데, 현물이 선물보다 ~24p 높아 **현물 형성가를 선물 지표에 비교 → 허위 필수 성립**(09:55·17:33 허위신호). 특히 재시작 직후 df0가 순수 선물이라 증폭. 폴링 전환으로 과거봉·형성봉 모두 선물 → 네가 보는 BTCUSDT.P 차트와 일치, 혼합 허위 제거. 비용 봉마감 감지 ~15초. (XAU는 fstream 차단으로 원래 폴링.)
 맥점신호 그룹(-1003964313330) 토픽으로 발송. 각 봉은 맥점방(후행·전환 정렬)/막돌파방 풀 라우팅.
 - ws_watch_10m.py — **10분봉 (2026-08-18 신설, 1시간봉 대체)**. 바이낸스 10m 미지원→data.py가 5분봉 2개 합성. 토큰 chris1H_bot(TELEGRAM_TOKEN) 재사용. 맥점토픽 THREAD_ID_10M=911(BTC)/912(XAU), 막돌파 BO_THREAD_10M=403(BTC)/404(XAU). HTF=30/60/120분. **스토 과열/침체 환경알림도 이 봇이 담당(30분봉→10분봉 이동)**. FEED_MODE=poll 필수(10m WS 없음).
 - ~~ws_watch.py — 1시간봉~~ — 2026-08-18 중단(disable). 토픽(맥점5·623/막돌파4·208)도 삭제(deleteForumTopic).
 - ws_watch_5m.py — 5분봉 (chris15m_bot=TELEGRAM_TOKEN_1M → BotFather에서 chris5m_bot로 개명. 2026-08-04 15분봉 대체. 맥점토픽 THREAD_ID_5M=574) HTF=10/30/60분(2026-08-19)
-- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → chris30m_bot 개명, 맥점토픽 THREAD_ID_30M=559)
+- ws_watch_30m.py — 30분봉 (chris4h_bot=TELEGRAM_TOKEN_4H → chris30m_bot 개명, 맥점토픽 THREAD_ID_30M=559) **2026-08-23 신호중단(stop+disable), 방·토픽 유지. 재개=`sudo systemctl enable --now maekjeom-bot-30m maekjeom-bot-xau-30m`**
 - ws_watch_3m.py — 3분봉 (chris1d_bot=TELEGRAM_TOKEN_1D → chris3m_bot 개명, 맥점토픽 THREAD_ID_3M=558) HTF=10/30/60분(2026-08-19)
 - ~~ws_watch_1m.py(15m) / ws_watch_4h.py / ws_watch_1d.py~~ — 중단(서비스 disable, 토픽 삭제)
 - ※ 다운감시(GH Actions)는 기존 개인 DM으로 유지(긴급알림 분리)
