@@ -85,6 +85,15 @@ def emit_breakout(text):
                            os.environ.get("TELEGRAM_BO_THREAD_5M"))
 
 
+def pb_ready():
+    return bool(os.environ.get("TELEGRAM_THREAD_ID_PULLBACK"))
+
+def emit_pullback(text):
+    print("🏹[눌림목방-5m]", text[:50])
+    return ab.tg_send_room(text, _token(), os.environ.get("TELEGRAM_CHAT_ID_1M"),
+                           os.environ.get("TELEGRAM_THREAD_ID_PULLBACK"))
+
+
 def fmt_checks(checks):
     return "\n".join(f"  {'✅' if v else '❌'} {k}" for k, v in checks.items())
 
@@ -162,6 +171,8 @@ class LiveState:
         self.last_recompute = 0.0
         self.maek_last_sent = {}   # 방향별 마지막 맥점 발송 봉시각(같은방향 30분 스로틀)
         self.bo_last_sent = {}     # 방향별 마지막 막돌파 발송 봉시각(같은방향 30분 스로틀)
+        self.sent_pb = None        # 눌림목방 같은봉 중복 방지
+        self.pb_last_sent = {}     # 방향별 마지막 눌림목 발송 봉시각(같은방향 30분 스로틀)
 
     def same_dir_blocked(self, d, when):
         return d == self.last_dir
@@ -174,6 +185,11 @@ class LiveState:
     def bo_ok(self, d, when, minutes=30):
         """막돌파방 같은 방향: 마지막 발송 후 minutes분 지났으면 True(재발송 허용)."""
         prev = self.bo_last_sent.get(d)
+        return prev is None or (when - prev) >= pd.Timedelta(minutes=minutes)
+
+    def pb_ok(self, d, when, minutes=30):
+        """눌림목방 같은 방향: 마지막 발송 후 minutes분 지났으면 True(재발송 허용)."""
+        prev = self.pb_last_sent.get(d)
         return prev is None or (when - prev) >= pd.Timedelta(minutes=minutes)
 
     def load_base(self):
@@ -220,7 +236,15 @@ def handle_tick(st, k):
                                 else (e["r1_short"] and e["r2_short"]))
         must_ok = bool(d) and all((e["must_long"] if d == "LONG" else e["must_short"]).values())  # 잠정과 동일 필수2 가드
         if d and breakout and must_ok and getattr(handle_tick, "send_confirm", True):
-            if aligned:
+            if pb_ready() and ab.pullback_note(e, d == "LONG"):   # 눌림목/반등목 → 눌림목방에만
+                if st.sent_pb == (d, when):
+                    print(f"[ws-5m] {kst(when):%m-%d %H:%M} 마감: 눌림목방 중복")
+                elif not st.pb_ok(d, when):
+                    print(f"[ws-5m] {kst(when):%m-%d %H:%M} 마감: 눌림목방 30분내 같은방향 억제")
+                else:
+                    emit_pullback(fmt_signal(e, when, provisional=False, active_dir=d))
+                    st.last_dir = d; st.sent_pb = (d, when); st.pb_last_sent[d] = when
+            elif aligned:
                 if st.sent_key == (d, when):
                     print(f"[ws-5m] {kst(when):%m-%d %H:%M} 마감: 맥점방 중복")
                 elif not st.maek_ok(d, when):
@@ -261,7 +285,10 @@ def handle_tick(st, k):
     if not breakout:
         return
     aligned = (e["r1_long"] and e["r2_long"]) if d == "LONG" else (e["r1_short"] and e["r2_short"])
-    if aligned:
+    is_pb = bool(pb_ready() and ab.pullback_note(e, d == "LONG"))   # 눌림목/반등목 → 눌림목방에만
+    if is_pb:
+        gate = st.sent_pb != (d, when) and st.pb_ok(d, when)
+    elif aligned:
         gate = d not in st.alerted_dirs
     else:
         gate = st.sent_bo != (d, when) and st.bo_ok(d, when)
@@ -277,7 +304,10 @@ def handle_tick(st, k):
         st.alerted_dirs.add(d)
         return
     card = fmt_signal(e, when, provisional=True, mins_left=mins_left, active_dir=d)
-    if aligned:
+    if is_pb:
+        emit_pullback(card)
+        st.sent_pb = (d, when); st.pb_last_sent[d] = when; st.last_dir = d
+    elif aligned:
         if st.maek_ok(d, when):
             emit(card)
             st.alerted_dirs.add(d); st.sent_key = (d, when); st.last_dir = d; st.maek_last_sent[d] = when
