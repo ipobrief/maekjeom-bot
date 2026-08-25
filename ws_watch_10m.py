@@ -323,19 +323,11 @@ def handle_tick(st, k):
         prev_zone = st.stoch_zone
         st.stoch_zone = zone
         if getattr(handle_tick, "send_confirm", True) and k_now is not None:
-            confirmed = set()
+            # 과열/침체 '진입'만 알림 (해소·잠정·취소 제거, 2026-08-23 사용자 요청)
             if zone == "hot" and prev_zone != "hot":
-                confirmed.add("hot")
+                emit(fmt_stoch_regime("hot", k_now, when))
             elif zone == "cold" and prev_zone != "cold":
-                confirmed.add("cold")
-            if prev_zone == "hot" and zone != "hot":
-                confirmed.add("hot_clear")
-            elif prev_zone == "cold" and zone != "cold":
-                confirmed.add("cold_clear")
-            for ev in ("hot", "cold", "hot_clear", "cold_clear"):
-                if ev in confirmed:
-                    emit(fmt_stoch_regime(ev, k_now, when))
-            # 잠정신호 취소(정정) 발송 제거(2026-08-22 사용자 요청) — 취소 알림 안 보냄
+                emit(fmt_stoch_regime("cold", k_now, when))
         st.prov_stoch_bar = None
         st.prov_stoch_events = set()
         st.alerted_bar = None
@@ -351,33 +343,7 @@ def handle_tick(st, k):
         st.alerted_bar = when
         st.alerted_dirs = set()
 
-    # ── 스토 과열/침체 잠정(미확정) 알림: 형성봉 %K 기준, 봉당 1회 ──
-    if getattr(handle_tick, "send_confirm", True):
-        kv = sig["k"].iloc[-1]
-        k_prov = float(kv) if not pd.isna(kv) else None
-        if k_prov is not None:
-            if st.prov_stoch_bar != when:
-                st.prov_stoch_bar = when
-                st.prov_stoch_events = set()
-            pzone = stoch_zone_of(k_prov)
-            base = st.stoch_zone
-            stoch_left = (when + pd.Timedelta(TF) - pd.Timestamp.now(tz="UTC")).total_seconds() / 60
-            stoch_left = max(0, stoch_left)
-            if stoch_left >= PROV_MIN_MINS_LEFT:
-                cand = []
-                if pzone == "hot" and base != "hot":
-                    cand.append("hot")
-                elif pzone == "cold" and base != "cold":
-                    cand.append("cold")
-                if base == "hot" and pzone != "hot":
-                    cand.append("hot_clear")
-                elif base == "cold" and pzone != "cold":
-                    cand.append("cold_clear")
-                for ev in cand:
-                    if ev not in st.prov_stoch_events:
-                        emit(fmt_stoch_regime(ev, k_prov, when,
-                                              provisional=True, mins_left=stoch_left))
-                        st.prov_stoch_events.add(ev)
+    # 스토 잠정(미확정) 알림 제거(2026-08-23 사용자 요청) — 과열/침체 '진입 확정'만 발송
 
     d = e.get("direction_active", e["direction"])
     if not d:
