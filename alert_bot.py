@@ -219,9 +219,12 @@ def pullback_note(e, long_):
     if fresh < 3:
         return ""
     m0 = e.get("boss_m0") or [False, False, False]
+    mu = e.get("boss_mu") or [False, False, False]
     st = e.get("boss_st") or [False, False, False]
-    tm = sum((m0[i] if long_ else not m0[i]) for i in range(3))   # MACD 0선 추세 정렬 수
-    ts = sum((st[i] if long_ else not st[i]) for i in range(3))   # 스토 50 정렬 수
+    # 추세 정렬 = MACD 0선 위치 + 방향(각도) 둘 다 (2026-08-27: 0선 위지만 하향 꺾인 롤오버 오신호 차단)
+    #   롱=0선 위 & 상향 / 숏=0선 아래 & 하향
+    tm = sum(((m0[i] and mu[i]) if long_ else ((not m0[i]) and (not mu[i]))) for i in range(3))
+    ts = sum((st[i] if long_ else not st[i]) for i in range(3))   # 스토 50 정렬 수(강도용)
     if tm < 2:
         return ""
     strong = (tm == 3 and ts >= 2)

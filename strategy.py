@@ -165,12 +165,13 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     #   롱=MACD 0선 위 & 스토 50 위 / 숏=거울(아래).
     def _boss(dfh):
         ml, ms, _ = ind.macd(dfh["close"]); kk, _ = ind.stochastic(dfh)
-        m0 = align_bias((ml > 0).astype(float), d.index) >= 0.5    # MACD 0선 위
-        st = align_bias((kk > 50).astype(float), d.index) >= 0.5   # 스토 50 위
-        return m0, st
-    b1_m0, b1_st = _boss(df1h)
-    b2_m0, b2_st = _boss(df4h)
-    b3_m0, b3_st = _boss(df1d)
+        m0 = align_bias((ml > 0).astype(float), d.index) >= 0.5             # MACD 0선 위
+        mup = align_bias((ml > ml.shift(1)).astype(float), d.index) >= 0.5  # MACD 상향(각도) — 눌림목 판정용
+        st = align_bias((kk > 50).astype(float), d.index) >= 0.5            # 스토 50 위
+        return m0, st, mup
+    b1_m0, b1_st, b1_mu = _boss(df1h)
+    b2_m0, b2_st, b2_mu = _boss(df4h)
+    b3_m0, b3_st, b3_mu = _boss(df1d)
 
     # ── N파동(조정 후 직전고점 돌파) — 큰형님 우선의 법칙 배지용 ──
     nwave_long, nwave_short = nwave_flags(d, cfg.get("pivot_left", 3), cfg.get("pivot_right", 3))
@@ -309,6 +310,7 @@ def build_signals(df15, df1h, df4h, df1d, cfg):
     out["bias_1h"], out["bias_4h"], out["bias_1d"] = b1, b4, bd
     out["boss_m0_1"], out["boss_m0_2"], out["boss_m0_3"] = b1_m0, b2_m0, b3_m0
     out["boss_st_1"], out["boss_st_2"], out["boss_st_3"] = b1_st, b2_st, b3_st
+    out["boss_mu_1"], out["boss_mu_2"], out["boss_mu_3"] = b1_mu, b2_mu, b3_mu
     out["nwave_long"], out["nwave_short"] = nwave_long, nwave_short
     for k, v in pbs.items():
         out["pb_" + k] = v
@@ -400,6 +402,7 @@ def explain(sig_row, cfg) -> dict:
         "tf_1d": tf_txt(r.get("bias_1d", 0)),
         "boss_m0": [bool(r.get("boss_m0_1")), bool(r.get("boss_m0_2")), bool(r.get("boss_m0_3"))],
         "boss_st": [bool(r.get("boss_st_1")), bool(r.get("boss_st_2")), bool(r.get("boss_st_3"))],
+        "boss_mu": [bool(r.get("boss_mu_1")), bool(r.get("boss_mu_2")), bool(r.get("boss_mu_3"))],
         "nwave_long": bool(r.get("nwave_long", False)),
         "nwave_short": bool(r.get("nwave_short", False)),
         "pb": {"hl_long": bool(r.get("pb_hl_long", False)), "fib_long": bool(r.get("pb_fib_long", False)),
