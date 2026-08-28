@@ -211,10 +211,10 @@ def boss_aligned(e, long_, need=4):
 
 
 def pullback_note(e, long_):
-    """추세방향 눌림목 표시(2026-08-21, 역추세 경고 대체).
-    상위TF MACD 0선(=추세방향)이 신호방향으로 다수(≥2/3) 정렬 + 막돌파(fresh≥3, 되돌림 재개)면
-    '추세 유지 중 눌림목 공략' 진입으로 안내. 큰형님 스토(50)까지 다수면 '강한' 눌림목.
-    추세 불명확(MACD 다수 반대)이면 표시 없음(역추세 경고는 제거)."""
+    """추세방향 눌림목/반등목 표시(2026-08-21, 역추세 경고 대체).
+    조건(모두 필수): ① 막돌파 fresh≥3 ② 상위TF MACD 신호방향 정렬 ≥2/3(롱=0선위&상향/숏=0선아래&하향)
+    ③ 구조(2026-08-28 필수화): 롱=저점 높아짐(higher-low) / 숏=고점 낮아짐(lower-high).
+    셋 다 충족이면 '🏹 눌림목/반등목 공략'. 큰형님 스토(50)까지 다수면 '강한'. 하나라도 불충족이면 표시 없음."""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     if fresh < 3:
         return ""
@@ -227,15 +227,17 @@ def pullback_note(e, long_):
     ts = sum((st[i] if long_ else not st[i]) for i in range(3))   # 스토 50 정렬 수(강도용)
     if tm < 2:
         return ""
-    strong = (tm == 3 and ts >= 2)
-    name = "눌림목" if long_ else "반등목"   # 롱=눌림목(상승중 눌림) / 숏=반등목(하락중 반등)
-    head = (f"🏹 <b>{'강한 ' if strong else ''}{name} 공략 — 큰형님 "
-            f"{'상승' if long_ else '하락'}추세 유지 중 되돌림 재개</b>\n")
-    # 구조 확인 디테일: 직전저점(고점) 유지 · 피보 되돌림% · 20MA 지지
+    # 구조 필수 게이트(2026-08-28): 눌림목=저점 높아짐(higher-low) 필수 / 반등목=고점 낮아짐(lower-high) 필수
     pb = e.get("pb") or {}
     sfx = "long" if long_ else "short"
     hl = pb.get("hl_" + sfx); fib = pb.get("fib_" + sfx); ma = pb.get("ma_" + sfx)
     fp = pb.get("fibpct_" + sfx, float("nan"))
+    if not hl:
+        return ""
+    strong = (tm == 3 and ts >= 2)
+    name = "눌림목" if long_ else "반등목"   # 롱=눌림목(상승중 눌림) / 숏=반등목(하락중 반등)
+    head = (f"🏹 <b>{'강한 ' if strong else ''}{name} 공략 — 큰형님 "
+            f"{'상승' if long_ else '하락'}추세 유지 중 되돌림 재개</b>\n")
     ck = lambda b: "✅" if b else "❌"
     fibtxt = f"피보 {fp:.0f}% {ck(fib)}" if fp == fp else f"피보 {ck(fib)}"
     detail = f"   └ {'저점유지' if long_ else '고점유지'} {ck(hl)} · {fibtxt} · 20MA지지 {ck(ma)}\n"
