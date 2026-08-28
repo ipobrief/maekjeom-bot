@@ -110,11 +110,15 @@ def pullback_structure(df, ma, L=3, R=3, lookback=120, only_last=90, ma_band=0.0
         # 확정 피벗만: 피벗 j는 j+R봉에 확정 → j <= i-R 인 것만 사용
         lows = [j for j in range(lo0, i - R + 1) if slp[j] == slp[j]]
         highs = [j for j in range(lo0, i - R + 1) if shp[j] == shp[j]]
-        # ① 롱 HL / 숏 LH
+        # ① 롱 HL / 숏 LH  (+2026-08-29: 직전 확정 스윙 이후 '돌파' 있으면 무효 = 미확정 신고점/신저점 반영)
         if len(lows) >= 2:
-            out["hl_long"][i] = low[lows[-1]] > low[lows[-2]] and close[i] > low[lows[-1]]
+            jl = lows[-1]
+            no_ll = low[jl + 1:i + 1].min() >= low[jl] if jl + 1 <= i else True  # 이후 신저점(직전저점 하향이탈) 없음
+            out["hl_long"][i] = low[jl] > low[lows[-2]] and close[i] > low[jl] and no_ll
         if len(highs) >= 2:
-            out["hl_short"][i] = high[highs[-1]] < high[highs[-2]] and close[i] < high[highs[-1]]
+            jh = highs[-1]
+            no_hh = high[jh + 1:i + 1].max() <= high[jh] if jh + 1 <= i else True  # 이후 신고점(직전고점 상향돌파) 없음
+            out["hl_short"][i] = high[jh] < high[highs[-2]] and close[i] < high[jh] and no_hh
         # ② 롱 피보(최근 스윙저점 A→그 뒤 스윙고점 B 상승레그)
         if lows and highs and highs[-1] > lows[-1]:
             A = low[lows[-1]]; B = high[highs[-1]]
