@@ -212,9 +212,9 @@ def boss_aligned(e, long_, need=4):
 
 def pullback_note(e, long_):
     """추세방향 눌림목/반등목 표시(2026-08-21, 역추세 경고 대체).
-    조건(모두 필수): ① 막돌파 fresh≥3 ② 상위TF MACD 신호방향 정렬 ≥2/3(롱=0선위&상향/숏=0선아래&하향)
-    ③ 구조(2026-08-28 필수화): 롱=저점 높아짐(higher-low) / 숏=고점 낮아짐(lower-high).
-    셋 다 충족이면 '🏹 눌림목/반등목 공략'. 큰형님 스토(50)까지 다수면 '강한'. 하나라도 불충족이면 표시 없음."""
+    조건(필수): ① 막돌파 fresh≥3 ② 상위TF MACD 신호방향 정렬 ≥2/3(롱=0선위&상향/숏=0선아래&하향).
+    둘 다 충족이면 '🏹 눌림목/반등목 공략'. 큰형님 스토(50)까지 다수면 '강한'.
+    구조(저점/고점 유지·피보·20MA)는 디테일 줄에 참고 표시만 — 게이트 아님(2026-08-29 사용자 판단용)."""
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     if fresh < 3:
         return ""
@@ -227,13 +227,11 @@ def pullback_note(e, long_):
     ts = sum((st[i] if long_ else not st[i]) for i in range(3))   # 스토 50 정렬 수(강도용)
     if tm < 2:
         return ""
-    # 구조 필수 게이트(2026-08-28): 눌림목=저점 높아짐(higher-low) 필수 / 반등목=고점 낮아짐(lower-high) 필수
+    # 구조(저점/고점·피보·20MA)는 참고 표시만 — 게이트 아님(2026-08-29 사용자: 저점/고점 필수 제거, 판단은 사용자)
     pb = e.get("pb") or {}
     sfx = "long" if long_ else "short"
     hl = pb.get("hl_" + sfx); fib = pb.get("fib_" + sfx); ma = pb.get("ma_" + sfx)
     fp = pb.get("fibpct_" + sfx, float("nan"))
-    if not hl:
-        return ""
     strong = (tm == 3 and ts >= 2)
     name = "눌림목" if long_ else "반등목"   # 롱=눌림목(상승중 눌림) / 숏=반등목(하락중 반등)
     head = (f"🏹 <b>{'강한 ' if strong else ''}{name} 공략 — 큰형님 "
