@@ -36,6 +36,7 @@ WS_URL = f"{WS_BASE}/ws/{SYMBOL.lower()}@kline_{TF}"
 HTF_REFRESH_SEC = 300
 RECOMPUTE_MIN_SEC = 30
 PROV_MIN_MINS_LEFT = 1
+SEND_PROVISIONAL = False   # 확정(봉 마감)만 발송, 잠정(예비) 끔 (2026-09-04 사용자 요청)
 
 
 def kst(ts):
@@ -270,6 +271,8 @@ def handle_tick(st, k):
         st.alerted_dirs = set()
         return
 
+    if not SEND_PROVISIONAL:   # 잠정 발송 끔 — 확정(봉 마감)만
+        return
     if now - st.last_recompute < RECOMPUTE_MIN_SEC:
         return
     st.last_recompute = now
