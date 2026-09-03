@@ -341,17 +341,9 @@ def handle_tick(st, k):
         divergence.check(st.df0, SYMBOL, TF, _token(),
                          os.environ.get("TELEGRAM_CHAT_ID"),
                          os.environ.get("TELEGRAM_THREAD_ID_10M"), st.sent_div)
-        # ── 10분봉 스토 과열/침체 알림(확정): 진입 1회 + 해소 1회 (잠정 취소 발송 없음, 2026-08-22) ──
+        # ── 10분봉 스토 과열/침체 알림: 2026-08-30 사용자 요청으로 발송 중지 (zone 추적만 유지) ──
         k_now = float(sig["k"].iloc[-1]) if not pd.isna(sig["k"].iloc[-1]) else None
-        zone = stoch_zone_of(k_now)
-        prev_zone = st.stoch_zone
-        st.stoch_zone = zone
-        if getattr(handle_tick, "send_confirm", True) and k_now is not None:
-            # 과열/침체 '진입'만 알림 (해소·잠정·취소 제거, 2026-08-23 사용자 요청)
-            if zone == "hot" and prev_zone != "hot":
-                emit(fmt_stoch_regime("hot", k_now, when))
-            elif zone == "cold" and prev_zone != "cold":
-                emit(fmt_stoch_regime("cold", k_now, when))
+        st.stoch_zone = stoch_zone_of(k_now)   # 상태 추적만, 발송 안 함
         st.prov_stoch_bar = None
         st.prov_stoch_events = set()
         st.alerted_bar = None
