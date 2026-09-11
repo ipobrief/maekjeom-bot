@@ -116,11 +116,17 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     fresh = e.get("fresh_long" if long_ else "fresh_short", 0)
     aligned = fresh >= 3 and ((e.get("r1_long") and e.get("r2_long")) if long_
                               else (e.get("r1_short") and e.get("r2_short")))
-    if fresh >= 3:
-        if aligned:
-            badge += "⭐ <b>맥점 완성</b> — 막돌파 + 후행·전환 정렬\n"
-        else:
-            badge += f"🎯 <b>막돌파 맥점</b> — 핵심 트리거 동시돌파({fresh}/3, 최근 2봉)\n"
+    fib_warn = ab.pullback_note(e, long_)          # 눌림목/반등목이면 비어있지 않음
+    is_pb = bool(fib_warn)
+    _dc = "LONG" if long_ else "SHORT"; _sq = "🟩" if long_ else "🟥"
+    if is_pb:                                       # 첫 줄 신호 종류(2026-09-11): 눌림목>맥점완성>막돌파
+        sig_type = f"🏹 <b>{'눌림목' if long_ else '반등목'} 공략 · {_dc}</b>\n"
+    elif aligned:
+        sig_type = f"⭐ <b>맥점 완성 · {_dc} · {fresh}/3</b>\n"
+    elif fresh >= 3:
+        sig_type = f"{_sq} 🎯 <b>막돌파 · {_dc} · {fresh}/3</b> {_sq}\n"
+    else:
+        sig_type = ""
     if (e.get("nwave_long") if long_ else e.get("nwave_short")):
         badge += "🌊 <b>N파동</b> — 조정 후 직전고점 돌파\n"
     rem_n = sum(rem.values()); n_tot = len(rem)
@@ -139,10 +145,8 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST 봉 형성중 · {left}\n"
     else:
         head = f"⏱ {kst(when):%Y-%m-%d %H:%M} KST ({TF} 마감)\n"
-    fib_warn = ab.pullback_note(e, long_)   # 추세방향 눌림목 표시(역추세 경고 대체)
-    box = "" if aligned else ((("🟩" if long_ else "🟥") + f" 🎯 <b>막돌파 맥점 · {'LONG' if long_ else 'SHORT'} · {fresh}/3</b> " + ("🟩" if long_ else "🟥") + "\n") if fresh >= 3 else "")
     return (
-        ab.bold_all(box + dir_line + badge + head).rstrip() + "\n"
+        ab.bold_all(sig_type + dir_line + badge + head).rstrip() + "\n"
         + f"<blockquote>{ab.bold_all(ab.fmt_boss(e, long_, HTF_LABELS) + fib_warn).rstrip()}</blockquote>\n"
         + f"<blockquote><b>{top_warn.rstrip()}</b></blockquote>\n"
         + f"<b>필수 {sum(must.values())}/2</b>\n{fmt_checks(must)}\n"
