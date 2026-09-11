@@ -80,19 +80,17 @@ def emit(text):
 def bo_ready():
     return bool(os.environ.get("TELEGRAM_CHAT_ID_BO") and os.environ.get("TELEGRAM_BO_THREAD_5M"))
 
-def emit_breakout(text):
-    print("🎯[막돌파방-5m]", text[:50])
-    return ab.tg_send_room(text, _token(), os.environ.get("TELEGRAM_CHAT_ID_BO"),
-                           os.environ.get("TELEGRAM_BO_THREAD_5M"))
+def emit_breakout(text):   # 막돌파방 폐지 → 맥점신호 방으로 합침(2026-09-11)
+    print("🎯→[맥점신호-5m]", text[:50])
+    return tg_send(text)
 
 
 def pb_ready():
     return bool(os.environ.get("TELEGRAM_THREAD_ID_PULLBACK"))
 
-def emit_pullback(text):
-    print("🏹[눌림목방-5m]", text[:50])
-    return ab.tg_send_room(text, _token(), os.environ.get("TELEGRAM_CHAT_ID_1M"),
-                           os.environ.get("TELEGRAM_THREAD_ID_PULLBACK"))
+def emit_pullback(text):   # 눌림목방 폐지 → 맥점신호 방으로 합침(2026-09-11)
+    print("🏹→[맥점신호-5m]", text[:50])
+    return tg_send(text)
 
 
 def fmt_checks(checks):
