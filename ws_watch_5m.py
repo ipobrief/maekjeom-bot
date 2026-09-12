@@ -120,9 +120,9 @@ def fmt_signal(e, when, provisional=False, mins_left=None, active_dir=None):
     is_pb = bool(fib_warn)
     _dc = "LONG" if long_ else "SHORT"; _sq = "🟩" if long_ else "🟥"
     if is_pb:                                       # 첫 줄 신호 종류(2026-09-11): 눌림목>맥점완성>막돌파
-        sig_type = f"🏹 <b>{'눌림목' if long_ else '반등목'} 공략 · {_dc}</b>\n"
+        sig_type = f"{_sq} 🏹 <b>{'눌림목' if long_ else '반등목'} 공략 · {_dc}</b> {_sq}\n"
     elif aligned:
-        sig_type = f"⭐ <b>맥점 완성 · {_dc} · {fresh}/3</b>\n"
+        sig_type = f"{_sq} ⭐ <b>맥점 완성 · {_dc} · {fresh}/3</b> {_sq}\n"
     elif fresh >= 3:
         sig_type = f"{_sq} 🎯 <b>막돌파 · {_dc} · {fresh}/3</b> {_sq}\n"
     else:
