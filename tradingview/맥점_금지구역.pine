@@ -1,0 +1,357 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════════════════════
+//  맥점 매수/매도 금지구역 (X선기법 · 『일주일만에 고수되기』 13장 127~130p)
+// ───────────────────────────────────────────────────────────────────────────
+//  · 매수 금지구역(🔴 하락존) = 매도맥점이 살아있는 구간 → 숏만, 매수 절대금지
+//  · 매도 금지구역(🟢 상승존) = 매수맥점이 살아있는 구간 → 롱만, 매도 절대금지
+//  · 구역 경계 = 맥점봇과 동일 판정(필수2 + 나머지6 중 ≥3). strategy.py 미러.
+//  · 지표 = 일목(9/26/52) · MACD(12/26/9) · 스토 키움식(12/5/5) · RCI(9/13/26)
+//  · 추세선은 참고용 자동선 + 손작도(네이티브 경고) 병행 권장.
+// ═══════════════════════════════════════════════════════════════════════════
+indicator("맥점 금지구역 (X선기법)", overlay=true, max_lines_count=200, max_labels_count=100, max_boxes_count=20)
+
+// ── 입력 ────────────────────────────────────────────────────────────────────
+gZ = "구역(Zone) 설정"
+zoneStart = input.string("자동 (저TF=막돌파·고TF=느슨)", "구역 시작 기준",
+     options=["자동 (저TF=막돌파·고TF=느슨)", "막돌파맥점", "느슨한 맥점 ①"], tooltip="자동: 1시간 미만봉=막돌파(fresh≥3, 텔레 신호와 동일) / 1시간 이상봉=느슨한맥점(필수2+나머지≥3, 방향 빨리). 또는 수동 고정.", group=gZ)
+remReq  = input.int(3, "나머지6 중 최소 충족 개수", minval=1, maxval=6, group=gZ)
+endMode = input.string("핵심조건(선행스팬1·스토50) 이탈 시 종료", "구역 종료 방식",
+     options=["핵심조건(선행스팬1·스토50) 이탈 시 종료", "반대 맥점까지 유지"], group=gZ)
+showSig = input.bool(true,  "맥점 화살표 표시", group=gZ)
+showLbl = input.bool(true,  "현재 구역 라벨 표시", group=gZ)
+scope   = input.string("전체 기록", "표시 범위",
+     options=["전체 기록", "현재 구역만"], tooltip="'현재 구역만' = 진행중인 구역 하나만 박스로 표시, 과거 음영·화살표 숨김", group=gZ)
+boxPad  = input.float(0.6, "구역 박스 세로 여백(배수)", minval=0.0, maxval=3.0, step=0.1, tooltip="'현재 구역만' 박스의 위/아래 여백. 클수록 세로로 길어짐(너무 크면 캔들이 눌림)", group=gZ)
+onlyCur = scope == "현재 구역만"
+
+gT = "추세선 (참고용 · 급등락은 못 따라감)"
+showTL  = input.bool(true, "자동 추세선 + 돌파/이탈 마커", group=gT)
+pivLen  = input.int(5, "피벗 좌/우 봉수", minval=2, maxval=20, group=gT)
+
+gI = "지표 기간 (봇 기본값)"
+tenkanLen = input.int(9,  "전환선",  group=gI)
+kijunLen  = input.int(26, "기준선",  group=gI)
+chikou    = input.int(26, "후행스팬 시프트", group=gI)
+maLen     = input.int(20, "이동평균(20)", group=gI)
+freshWin  = input.int(2,  "막돌파 신선도 창(봉)", minval=1, maxval=5, tooltip="3그룹이 '동시에' 돌파로 인정되는 봉 수. 봇 기본 2.", group=gI)
+
+// ── 지표 계산 (indicators.py 미러) ───────────────────────────────────────────
+tenkan  = (ta.highest(high, tenkanLen) + ta.lowest(low, tenkanLen)) / 2
+kijun   = (ta.highest(high, kijunLen)  + ta.lowest(low, kijunLen))  / 2
+senkou1 = (tenkan + kijun) / 2                     // 선행스팬1 '끝점' (shift 없음, 차트 초록선 끝)
+ma20    = ta.sma(close, maLen)
+
+[macdLine, macdSig, _m] = ta.macd(close, 12, 26, 9)
+
+// 스토캐스틱 키움식 12/5/5 (%K길이12 · %K스무딩5 · %D스무딩5)
+ll12  = ta.lowest(low, 12)
+hh12  = ta.highest(high, 12)
+fastK = 100 * (close - ll12) / (hh12 - ll12)
+kK    = ta.sma(fastK, 5)                           // Slow %K
+dD    = ta.sma(kK, 5)                              // Slow %D
+
+// RCI (스피어만 시간·가격 순위상관, -100~100) — 정렬 기반 O(n log n) 최적화(값 동일, 이전 O(n²)).
+rci(simple int len) =>
+    float out = na
+    if bar_index >= len - 1
+        arr = array.new_float(len)
+        for i = 0 to len - 1
+            array.set(arr, i, close[i])             // idx0=최신 ... idx(len-1)=과거
+        ord = array.sort_indices(arr, order.descending)  // ord[k]=k+1등(높은가격) 위치
+        rnk = array.new_int(len)
+        for k = 0 to len - 1
+            array.set(rnk, array.get(ord, k), k + 1)     // 위치별 가격순위(최고가=1)
+        float d2 = 0.0
+        for i = 0 to len - 1
+            d = (i + 1) - array.get(rnk, i)         // 시간순위(최신=1) - 가격순위
+            d2 += d * d
+        out := (1 - 6 * d2 / (len * (len * len - 1))) * 100
+    out
+rci9  = rci(9)
+rci13 = rci(13)
+rci26 = rci(26)
+
+// ── 맥점 조건 (strategy.py build_signals 미러) ────────────────────────────────
+// 필수2
+LM1 = close > senkou1
+LM2 = close > ma20
+// 나머지6 (대각선 LR3/SR3 제외 → 6개, ≥remReq 필요)
+LR1 = close > close[chikou]                         // 후행스팬 > 26봉전
+LR2 = tenkan > kijun                                // 전환 > 기준 (GC)
+LR4 = macdLine > macdSig                            // MACD 방향(GC)
+LR5 = kK > 50 and kK < 80 and kK > dD and kK > kK[1]  // 스토 진입(50~80·GC·상향)
+LR6 = rci9 > rci13 and rci9 > 0 and rci9 > rci9[1]  // RCI 단>중·0선위·상향
+LR7 = rci26 > 0                                     // RCI 그린26 0선 위
+longRem = (LR1?1:0)+(LR2?1:0)+(LR4?1:0)+(LR5?1:0)+(LR6?1:0)+(LR7?1:0)
+longAll = LM1 and LM2 and longRem >= remReq
+
+SM1 = close < senkou1
+SM2 = close < ma20
+SR1 = close < close[chikou]
+SR2 = tenkan < kijun
+SR4 = macdLine < macdSig
+SR5 = kK < 50 and kK > 20 and kK < dD and kK < kK[1]
+SR6 = rci9 < rci13 and rci9 < 0 and rci9 < rci9[1]
+SR7 = rci26 < 0
+shortRem = (SR1?1:0)+(SR2?1:0)+(SR4?1:0)+(SR5?1:0)+(SR6?1:0)+(SR7?1:0)
+shortAll = SM1 and SM2 and shortRem >= remReq
+
+// ── 막돌파(fresh≥3) 계산 — 라이브 strategy.py 2026-08-15 정의 ──────────────────
+//  3그룹이 최근 freshWin봉 이내에 '점등'한 개수(0~3). 3이면 막돌파.
+//  ⚠️ MACD·RCI는 '크로스 엣지'가 아니라 '상태'다(추세 진행 중 계속 유효 → 크로스가 창 밖이어도 잡음).
+freshOccur(bool cond) => math.sum(cond ? 1.0 : 0.0, freshWin) > 0
+// 롱 트리거
+macdUp_L  = macdLine > macdSig and macdLine > macdLine[1]   // MACD: GC 상태 + 상승(선 오름)
+stoUp_L   = kK > 50 and kK[1] <= 50                         // 스토: 50 상향돌파 '순간'(엣지)
+rciUp_L   = rci26 > 0 or rci9 > 0                           // RCI: 9 또는 26 중 하나라도 0선 위(모멘텀)
+freshLong = (freshOccur(macdUp_L) ? 1 : 0) + (freshOccur(stoUp_L) ? 1 : 0) + (freshOccur(rciUp_L) ? 1 : 0)
+// 숏 트리거(거울)
+macdDn_S  = macdLine < macdSig and macdLine < macdLine[1]   // MACD: DC 상태 + 하락
+stoDn_S   = kK < 50 and kK[1] >= 50                         // 스토: 50 하향돌파 순간
+rciDn_S   = rci26 < 0 or rci9 < 0                           // RCI: 9 또는 26 중 하나라도 0선 아래
+freshShort = (freshOccur(macdDn_S) ? 1 : 0) + (freshOccur(stoDn_S) ? 1 : 0) + (freshOccur(rciDn_S) ? 1 : 0)
+
+// 구역 시작 기준: 막돌파(①+fresh≥3) / 느슨(①) / 자동(1시간 미만봉=막돌파, 이상봉=느슨)
+useMak = zoneStart == "막돌파맥점" ? true : zoneStart == "느슨한 맥점 ①" ? false : (timeframe.in_seconds() < 3600)
+bull = useMak ? (longAll  and freshLong  >= 3) : longAll
+bear = useMak ? (shortAll and freshShort >= 3) : shortAll
+
+// ── 구역(regime) 상태머신 ────────────────────────────────────────────────────
+//  +1 = 매도금지(🟢 롱존/상승) · -1 = 매수금지(🔴 숏존/하락) · 0 = 중립
+var int   regime   = 0
+var int   segStart = na                             // 현재 구역 시작봉
+var float segHi    = na                             // 현재 구역 고가
+var float segLo    = na                             // 현재 구역 저가
+coreBreakLong  = close < senkou1 or kK < 50         // 롱존 핵심 이탈
+coreBreakShort = close > senkou1 or kK > 50         // 숏존 핵심 이탈
+if bull
+    regime := 1
+else if bear
+    regime := -1
+else if endMode == "핵심조건(선행스팬1·스토50) 이탈 시 종료"
+    if regime == 1 and coreBreakLong
+        regime := 0
+    else if regime == -1 and coreBreakShort
+        regime := 0
+// '반대 맥점까지 유지' 모드면 반대 맥점 뜰 때까지 그대로 유지
+
+// 현재 구역 시작봉·고저 추적 (구역이 바뀌면 리셋, 아니면 갱신)
+if regime != regime[1]
+    segStart := bar_index
+    segHi := high
+    segLo := low
+else
+    segHi := math.max(segHi, high)
+    segLo := math.min(segLo, low)
+
+// 화살표: 막돌파(맥점)가 '새로' 뜬 봉마다 — 텔레 발송과 동일(같은 방향도 매번).
+//  regime 전환이 아니라 bull/bear 에지 기준 → 같은 방향 반복 막돌파도 각각 표시.
+longSig  = bull  and not bull[1]
+shortSig = bear  and not bear[1]
+
+// ── 배경 음영 (전체 기록 모드) ───────────────────────────────────────────────
+zoneCol = regime == -1 ? color.new(color.red, 88) : regime == 1 ? color.new(color.green, 88) : na
+bgcolor(onlyCur ? na : zoneCol, title="금지구역 배경")
+
+// ── 현재 구역만 모드: 진행중 구역 하나만 박스로 표시 ─────────────────────────
+var box   curBox   = na
+var label entryLbl = na
+if onlyCur and barstate.islast
+    box.delete(curBox)
+    label.delete(entryLbl)
+    if regime != 0 and not na(segStart)
+        pad = (segHi - segLo) * boxPad
+        bc  = regime == -1 ? color.new(color.red, 82) : color.new(color.green, 82)
+        curBox := box.new(segStart, segHi + pad, bar_index, segLo - pad, border_color=color.new(color.gray, 50), bgcolor=bc)
+        entryLbl := label.new(segStart, regime == -1 ? segHi + pad : segLo - pad, regime == -1 ? "매도맥점 진입" : "매수맥점 진입", style=regime == -1 ? label.style_label_down : label.style_label_up, color=regime == -1 ? color.new(color.red, 0) : color.new(color.green, 0), textcolor=color.white, size=size.small)
+
+// ── 오버레이 선 ──────────────────────────────────────────────────────────────
+plot(senkou1, "선행스팬1(끝점)", color=color.new(color.green, 0), linewidth=2)
+plot(ma20,    "20이평",          color=color.new(color.orange, 0), linewidth=1)
+
+// ── 맥점 화살표 ──────────────────────────────────────────────────────────────
+plotshape(showSig and not onlyCur and longSig,  "매수맥점", location=location.belowbar,
+     style=shape.triangleup,   color=color.new(color.green, 0), size=size.small, text="매수맥점")
+plotshape(showSig and not onlyCur and shortSig, "매도맥점", location=location.abovebar,
+     style=shape.triangledown, color=color.new(color.red, 0),   size=size.small, text="매도맥점")
+
+// ── 현재 구역 라벨 (마지막 봉 우측) ──────────────────────────────────────────
+var label lbl = na
+if showLbl and barstate.islast
+    txt = regime == -1 ? "🔴 매수금지구역 (숏존)\n매수 절대금지 · 숏만 노림" : regime == 1 ? "🟢 매도금지구역 (롱존)\n매도 절대금지 · 롱만 노림" : "⚪ 중립 (구역 미형성)"
+    col = regime == -1 ? color.red : regime == 1 ? color.green : color.gray
+    label.delete(lbl)
+    lbl := label.new(bar_index, high, txt, style=label.style_label_left, color=color.new(col, 15), textcolor=color.white, size=size.normal)
+
+// ── 자동 추세선 (참고용) ─────────────────────────────────────────────────────
+//  최근 고점2점(하락 저항선) / 저점2점(상승 지지선)을 이어 연장.
+//  ⚠️ 봇이 체크리스트에서 뺀 이유와 동일: 가파른 랠리/급반전은 못 따라감.
+var float phA = na
+var int   pxA = na
+var float phB = na
+var int   pxB = na
+var float plA = na
+var int   qxA = na
+var float plB = na
+var int   qxB = na
+var line  resLine = na
+var line  supLine = na
+
+ph = ta.pivothigh(pivLen, pivLen)
+pl = ta.pivotlow(pivLen, pivLen)
+
+if showTL and not na(ph)
+    phA := phB
+    pxA := pxB
+    phB := ph
+    pxB := bar_index - pivLen
+    if not na(phA) and pxB != pxA
+        line.delete(resLine)
+        resLine := line.new(pxA, phA, pxB, phB, extend=extend.right, color=color.new(color.red, 30), width=1, style=line.style_dashed)
+
+if showTL and not na(pl)
+    plA := plB
+    qxA := qxB
+    plB := pl
+    qxB := bar_index - pivLen
+    if not na(plA) and qxB != qxA
+        line.delete(supLine)
+        supLine := line.new(qxA, plA, qxB, plB, extend=extend.right, color=color.new(color.blue, 30), width=1, style=line.style_dashed)
+
+// 저항선(하락) 상향돌파 / 지지선(상승) 하향이탈 판정 — 연장선의 현재봉 투영값 기준
+resProj = not na(phA) and pxB != pxA ? phB + (phB - phA) / (pxB - pxA) * (bar_index - pxB) : na
+supProj = not na(plA) and qxB != qxA ? plB + (plB - plA) / (qxB - qxA) * (bar_index - qxB) : na
+resDown = not na(resProj) and (phB - phA) < 0        // 하락 저항선만 유효
+supUp   = not na(supProj) and (plB - plA) > 0        // 상승 지지선만 유효
+breakUp   = showTL and resDown and close > resProj and close[1] <= resProj[1]
+breakDown = showTL and supUp   and close < supProj and close[1] >= supProj[1]
+plotshape(breakUp and not onlyCur,   "저항선 상향돌파", location=location.belowbar,
+     style=shape.diamond, color=color.new(color.lime, 0), size=size.tiny)
+plotshape(breakDown and not onlyCur, "지지선 하향이탈", location=location.abovebar,
+     style=shape.diamond, color=color.new(color.fuchsia, 0), size=size.tiny)
+
+// ── 알림 (트레이딩뷰 경고 → 웹훅으로 텔레그램 연결 가능) ──────────────────────
+alertcondition(longSig,  "매수맥점(매도금지 진입)", "🟢 매도금지구역 진입 — 롱존 시작")
+alertcondition(shortSig, "매도맥점(매수금지 진입)", "🔴 매수금지구역 진입 — 숏존 시작")
+alertcondition(breakUp,  "저항 추세선 상향돌파",     "📈 하락 저항선 상향돌파(참고)")
+alertcondition(breakDown,"지지 추세선 하향이탈",     "📉 상승 지지선 하향이탈(참고)")
+
+// ── 멀티TF 포지션 판넬 (큰형님 방향 한눈에) ──────────────────────────────────
+//  차트 TF에 따라 그룹 자동전환: 저TF(3·5·10·30분) / 고TF(1·2·4시간·일봉).
+//  각 TF의 추세 방향(롱=초록/숏=빨강)을 상단 표로. 방향 = 종가>선행1 & >20MA & MACD GC & 스토>50(롱), 거울(숏), 아니면 직전 유지.
+gP = "멀티TF 포지션 판넬"
+showPanel = input.bool(true, "판넬 표시", group=gP)
+panelLocS = input.string("상단 우측", "판넬 위치", options=["상단 우측", "상단 중앙", "상단 좌측"], group=gP)
+
+// 각 TF의 구역 regime(+1롱/-1숏/0중립) — 메인 구역과 동일 로직(막돌파+지속, RCI 포함). um=막돌파모드 여부.
+regimeFn(simple bool um) =>
+    tk = (ta.highest(high, tenkanLen) + ta.lowest(low, tenkanLen)) / 2
+    kj = (ta.highest(high, kijunLen) + ta.lowest(low, kijunLen)) / 2
+    s1 = (tk + kj) / 2
+    m20 = ta.sma(close, maLen)
+    [ml, sg, _hh] = ta.macd(close, 12, 26, 9)
+    lo = ta.lowest(low, 12)
+    hi = ta.highest(high, 12)
+    kk = ta.sma(100 * (close - lo) / (hi - lo), 5)
+    dd = ta.sma(kk, 5)
+    r9 = rci(9)
+    r13 = rci(13)
+    r26 = rci(26)
+    lm1 = close > s1
+    lm2 = close > m20
+    lr1 = close > close[chikou]
+    lr2 = tk > kj
+    lr4 = ml > sg
+    lr5 = kk > 50 and kk < 80 and kk > dd and kk > kk[1]
+    lr6 = r9 > r13 and r9 > 0 and r9 > r9[1]
+    lr7 = r26 > 0
+    lall = lm1 and lm2 and ((lr1?1:0)+(lr2?1:0)+(lr4?1:0)+(lr5?1:0)+(lr6?1:0)+(lr7?1:0)) >= remReq
+    sm1 = close < s1
+    sm2 = close < m20
+    sr1 = close < close[chikou]
+    sr2 = tk < kj
+    sr4 = ml < sg
+    sr5 = kk < 50 and kk > 20 and kk < dd and kk < kk[1]
+    sr6 = r9 < r13 and r9 < 0 and r9 < r9[1]
+    sr7 = r26 < 0
+    sall = sm1 and sm2 and ((sr1?1:0)+(sr2?1:0)+(sr4?1:0)+(sr5?1:0)+(sr6?1:0)+(sr7?1:0)) >= remReq
+    fl = (freshOccur(ml > sg and ml > ml[1])?1:0) + (freshOccur(kk > 50 and kk[1] <= 50)?1:0) + (freshOccur(r26 > 0 or r9 > 0)?1:0)
+    fs = (freshOccur(ml < sg and ml < ml[1])?1:0) + (freshOccur(kk < 50 and kk[1] >= 50)?1:0) + (freshOccur(r26 < 0 or r9 < 0)?1:0)
+    bl = um ? (lall and fl >= 3) : lall
+    br = um ? (sall and fs >= 3) : sall
+    var int rg = 0
+    if bl
+        rg := 1
+    else if br
+        rg := -1
+    else if endMode == "핵심조건(선행스팬1·스토50) 이탈 시 종료"
+        if rg == 1 and (close < s1 or kk < 50)
+            rg := 0
+        else if rg == -1 and (close > s1 or kk > 50)
+            rg := 0
+    rg
+
+lowG = timeframe.in_seconds() < 3600
+tfa = lowG ? "3"    : "60"
+tfb = lowG ? "5"    : "120"
+tfc = lowG ? "10"   : "240"
+tfd = lowG ? "30"   : "1D"
+lba = lowG ? "3분"  : "1시간"
+lbb = lowG ? "5분"  : "2시간"
+lbc = lowG ? "10분" : "4시간"
+lbd = lowG ? "30분" : "일봉"
+
+// 판넬 4칸은 모두 같은 그룹(차트 기준) → 저TF그룹=막돌파, 고TF그룹=느슨. (자동일 때 lowG로 판정)
+panelUseMak = zoneStart == "막돌파맥점" ? true : zoneStart == "느슨한 맥점 ①" ? false : lowG
+pa = request.security(syminfo.tickerid, tfa, regimeFn(panelUseMak))
+pb = request.security(syminfo.tickerid, tfb, regimeFn(panelUseMak))
+pc = request.security(syminfo.tickerid, tfc, regimeFn(panelUseMak))
+pe = request.security(syminfo.tickerid, tfd, regimeFn(panelUseMak))
+
+pnlPos = panelLocS == "상단 우측" ? position.top_right : panelLocS == "상단 좌측" ? position.top_left : position.top_center
+var table pnl = table.new(pnlPos, 4, 2, border_width=1, border_color=color.new(color.gray, 40))
+posBg(p) => p == 1 ? color.new(color.green, 0) : p == -1 ? color.new(color.red, 0) : color.new(color.gray, 40)
+posTx(p) => p == 1 ? "롱" : p == -1 ? "숏" : "·"
+mk(tf, lb) => (tf == timeframe.period ? "● " : "") + lb
+if showPanel and barstate.islast
+    table.cell(pnl, 0, 0, mk(tfa, lba), text_color=color.white, bgcolor=color.new(color.gray, 55), text_size=size.small)
+    table.cell(pnl, 1, 0, mk(tfb, lbb), text_color=color.white, bgcolor=color.new(color.gray, 55), text_size=size.small)
+    table.cell(pnl, 2, 0, mk(tfc, lbc), text_color=color.white, bgcolor=color.new(color.gray, 55), text_size=size.small)
+    table.cell(pnl, 3, 0, mk(tfd, lbd), text_color=color.white, bgcolor=color.new(color.gray, 55), text_size=size.small)
+    table.cell(pnl, 0, 1, posTx(pa), text_color=color.white, bgcolor=posBg(pa), text_size=size.large)
+    table.cell(pnl, 1, 1, posTx(pb), text_color=color.white, bgcolor=posBg(pb), text_size=size.large)
+    table.cell(pnl, 2, 1, posTx(pc), text_color=color.white, bgcolor=posBg(pc), text_size=size.large)
+    table.cell(pnl, 3, 1, posTx(pe), text_color=color.white, bgcolor=posBg(pe), text_size=size.large)
+
+// ── 디버그 (데이터 윈도우에서 봉별 값 확인 → 텔레 카드와 대조) ────────────────
+//  켜고 문제 봉(예: 13:18)에 커서 올린 뒤 '데이터 윈도우'에서 값을 읽어
+//  텔레 카드의 필수2·나머지3/6·fresh와 비교 → 어느 지표가 어긋나는지 특정.
+gD  = "디버그"
+dbg = input.bool(false, "디버그 값 표시(데이터 윈도우)", group=gD)
+plot(dbg ? longRem   : na, "롱_나머지(0~6)",  display=display.status_line + display.data_window)
+plot(dbg ? shortRem  : na, "숏_나머지(0~6)",  display=display.status_line + display.data_window)
+plot(dbg ? freshLong : na, "롱_fresh(0~3)",   display=display.status_line + display.data_window)
+plot(dbg ? freshShort: na, "숏_fresh(0~3)",   display=display.status_line + display.data_window)
+plot(dbg ? (LM1?1:0) : na, "LM1 종가>선행1",  display=display.status_line + display.data_window)
+plot(dbg ? (LM2?1:0) : na, "LM2 종가>20MA",   display=display.status_line + display.data_window)
+plot(dbg ? (LR1?1:0) : na, "LR1 후행",         display=display.status_line + display.data_window)
+plot(dbg ? (LR2?1:0) : na, "LR2 전환>기준",    display=display.status_line + display.data_window)
+plot(dbg ? (LR4?1:0) : na, "LR4 MACD",         display=display.status_line + display.data_window)
+plot(dbg ? (LR5?1:0) : na, "LR5 스토",         display=display.status_line + display.data_window)
+plot(dbg ? (LR6?1:0) : na, "LR6 RCI단",        display=display.status_line + display.data_window)
+plot(dbg ? (LR7?1:0) : na, "LR7 RCI그린",      display=display.status_line + display.data_window)
+plot(dbg ? senkou1   : na, "선행스팬1값",       display=display.status_line + display.data_window)
+plot(dbg ? ma20      : na, "20MA값",           display=display.status_line + display.data_window)
+plot(dbg ? kK        : na, "스토%K값",          display=display.status_line + display.data_window)
+plot(dbg ? rci9      : na, "RCI9값",           display=display.status_line + display.data_window)
+plot(dbg ? rci13     : na, "RCI13값",          display=display.status_line + display.data_window)
+plot(dbg ? rci26     : na, "RCI26값",          display=display.status_line + display.data_window)
+plot(dbg ? macdLine  : na, "MACD선값",         display=display.status_line + display.data_window)
+// 그룹별 fresh(0/1): 어느 막돌파 트리거가 2봉 이내에 안 잡혔는지 특정
+plot(dbg ? (freshOccur(macdUp_L)?1:0) : na, "롱fresh_MACD", display=display.status_line + display.data_window)
+plot(dbg ? (freshOccur(stoUp_L)?1:0)  : na, "롱fresh_스토",  display=display.status_line + display.data_window)
+plot(dbg ? (freshOccur(rciUp_L)?1:0)  : na, "롱fresh_RCI",   display=display.status_line + display.data_window)
+// 현재봉에서 '막 돌파' 발생 여부(0/1): 돌파가 이 봉에서 일어났는지
+plot(dbg ? (macdUp_L?1:0) : na, "MACD돌파@현재봉", display=display.status_line + display.data_window)
+plot(dbg ? (stoUp_L?1:0)  : na, "스토돌파@현재봉",  display=display.status_line + display.data_window)
+plot(dbg ? (rciUp_L?1:0)  : na, "RCI돌파@현재봉",   display=display.status_line + display.data_window)

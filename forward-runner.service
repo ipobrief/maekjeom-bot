@@ -1,0 +1,17 @@
+[Unit]
+Description=Track2 BTC 10m forward runner (Binance testnet)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/maekjeom-bot
+# 비밀키는 repo에 넣지 않음 — 서버에서 /etc/forward-runner.env 직접 생성
+EnvironmentFile=/etc/forward-runner.env
+ExecStart=/usr/bin/python3 forward_runner.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
