@@ -185,6 +185,15 @@ class BinanceFutures:
     def cancel_all(self, symbol):
         return self._delete("/fapi/v1/allOpenOrders", {"symbol": symbol})
 
+    def income_history(self, symbol=None, income_type=None, limit=1000):
+        """실현손익/수수료/펀딩 내역 (/fapi/v1/income). 성과 집계용."""
+        params = {"limit": limit}
+        if symbol:
+            params["symbol"] = symbol
+        if income_type:
+            params["incomeType"] = income_type
+        return self._get("/fapi/v1/income", params, signed=True)
+
 
 # ── 연결 자가진단 (읽기전용: 주문 안 넣음) ────────────────────────────────────
 if __name__ == "__main__":
