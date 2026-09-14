@@ -7,12 +7,14 @@ MM: 롱+숏, 레버리지 10배, 고정증거금, 초기손절=전저점/전고�
 진입: 막돌파(fresh≥3) + HTF 방향정렬(상위 3개 TF bias 일치).
 수수료 반영(taker). 펀딩·슬리피지 제외. 공개 시세만 사용.
 """
+import os
 import numpy as np
 import pandas as pd
 import data
 import strategy
 import indicators as ind
 
+SYMBOL = os.environ.get("BT_SYMBOL", "BTCUSDT")   # BT_SYMBOL=XAUUSDT 로 종목 교체
 LEVERAGE = 10
 MARGIN_PER_TRADE = 100.0
 PARTIAL_ROE = 0.05
@@ -26,17 +28,17 @@ CFG = {
     "atr_period": 14, "rci_long": 26, "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 3,
     "atr_stop_mult": 2.0, "limit_offset": 0.0003, "trend_lookback": 100,
-    "fresh_bars": 2,
+    "fresh_bars": 3,   # 10분봉 = ws_watch_10m/forward_runner와 동일(라이브 일치)
 }
 
 
 def load():
-    print("데이터 수집 중(3분 ~60일 + HTF 10·30분·1시간)... 시간 좀 걸림")
+    print(f"데이터 수집 중({SYMBOL} 10분 ~6개월 + HTF 30분·1·2시간)... 시간 좀 걸림")
     return {
-        "3m": data.get_history("BTCUSDT", "3m", bars=30000),  # ~62일
-        "10m": data.get_history("BTCUSDT", "10m", bars=9000),
-        "30m": data.get_history("BTCUSDT", "30m", bars=3000),
-        "1h": data.get_history("BTCUSDT", "1h", bars=1500),
+        "10m": data.get_history(SYMBOL, "10m", bars=12000),   # ~83일 (nwave 계산량 고려)
+        "30m": data.get_history(SYMBOL, "30m", bars=4500),
+        "1h": data.get_history(SYMBOL, "1h", bars=2200),
+        "2h": data.get_history(SYMBOL, "2h", bars=1200),
     }
 
 
@@ -49,6 +51,26 @@ def build_sig(base, h1, h2, h3, a1, a2, a3):
     sig["htf_long"] = (ba > 0) & (bb > 0) & (bc > 0)
     sig["htf_short"] = (ba < 0) & (bb < 0) & (bc < 0)
     return sig
+
+
+def align_closed(ind_series, htf_interval, base_index, base_interval):
+    """미래참조 없는 상위TF 정렬: 각 base봉 '마감시점'까지 '완료된' 상위봉 값만 사용.
+    ind_series=상위TF 개장시각 인덱스. 개장+interval(=마감)에야 값 확정 → 마감시각 기준 ffill."""
+    s = ind_series.copy()
+    s.index = s.index + htf_interval          # 개장시각 → 마감시각으로 이동
+    base_close = base_index + base_interval    # base봉 마감시각
+    aligned = s.reindex(s.index.union(base_close)).ffill().reindex(base_close)
+    aligned.index = base_index                 # 위치 그대로 base 인덱스로
+    return aligned
+
+
+def boss_closed(dfh, htf_interval, base_index):
+    """상위TF MACD 정렬(0선위·상향)을 마감봉 기준으로. (m0, mu) 반환."""
+    ml, _, _ = ind.macd(dfh["close"])
+    bi = pd.Timedelta("10min")
+    m0 = align_closed((ml > 0).astype(float), htf_interval, base_index, bi) >= 0.5
+    mu = align_closed((ml > ml.shift(1)).astype(float), htf_interval, base_index, bi) >= 0.5
+    return m0.fillna(False), mu.fillna(False)
 
 
 def _pnl(pos, exit_price, qty):
@@ -137,26 +159,49 @@ def report(name, trades, ec):
 
 if __name__ == "__main__":
     D = load()
-    # 3분봉 진입, HTF=10·30분·1시간 (ws_watch_3m 구성)
-    sig = build_sig(D["3m"], D["10m"], D["30m"], D["1h"], D["10m"], D["30m"], D["1h"])
+    # 10분봉 진입, HTF=30분·1·2시간 (ws_watch_10m / forward_runner 구성)
+    sig = build_sig(D["10m"], D["30m"], D["1h"], D["2h"], D["30m"], D["1h"], D["2h"])
     f3l = sig["fresh_long"] >= 3
     f3s = sig["fresh_short"] >= 3
-    tmL = sum((sig[f"boss_m0_{i}"] & sig[f"boss_mu_{i}"]).astype(int) for i in (1, 2, 3))
-    tmS = sum(((~sig[f"boss_m0_{i}"]) & (~sig[f"boss_mu_{i}"])).astype(int) for i in (1, 2, 3))
-    sig["B_long"] = sig["long"] & f3l & (tmL >= 2)
-    sig["B_short"] = sig["short"] & f3s & (tmS >= 2)
+    # ★ 미래참조 제거: 상위TF MACD 정렬을 '마감된 봉'만으로 계산 (look-ahead 없음)
+    b30 = boss_closed(D["30m"], pd.Timedelta("30min"), sig.index)
+    b1h = boss_closed(D["1h"], pd.Timedelta("1h"), sig.index)
+    b2h = boss_closed(D["2h"], pd.Timedelta("2h"), sig.index)
+    tmL = (b30[0] & b30[1]).astype(int) + (b1h[0] & b1h[1]).astype(int) + (b2h[0] & b2h[1]).astype(int)
+    tmS = ((~b30[0]) & (~b30[1])).astype(int) + ((~b1h[0]) & (~b1h[1])).astype(int) + ((~b2h[0]) & (~b2h[1])).astype(int)
+    # 구름 두께(base TF, 미래참조 없음): |선행A-선행B| / 종가
+    d10 = D["10m"]
+    tk = (d10["high"].rolling(9).max() + d10["low"].rolling(9).min()) / 2
+    kj = (d10["high"].rolling(26).max() + d10["low"].rolling(26).min()) / 2
+    spanA = (tk + kj) / 2
+    spanB = (d10["high"].rolling(52).max() + d10["low"].rolling(52).min()) / 2
+    thick = ((spanA - spanB).abs() / d10["close"]).reindex(sig.index)
+
+    # ★ 진짜 눌림목 = N파동(저점高↑ + 조정 피보되돌림 + 직전고점 돌파). 전체기간 계산, 확정피벗만(미래참조X)
+    print("N파동(진짜눌림목) 계산 중... (전체기간, 좀 걸림)")
+    nl, ns = strategy.nwave_flags(d10, L=3, R=3, only_last=len(d10))
+    nl = nl.reindex(sig.index).fillna(False); ns = ns.reindex(sig.index).fillna(False)
+
+    def setc(name, L, S):
+        sig[name + "_long"] = L; sig[name + "_short"] = S
+    setc("nw", nl, ns)                                         # 진짜눌림목(N파동)만
+    setc("nwc", nl & (thick >= 0.002), ns & (thick >= 0.002)) # +구름≥0.2%(얇은횡보 제외)
+    setc("nwh", nl & (tmL >= 2), ns & (tmS >= 2))             # +정직HTF 추세정렬
+    setc("nwhc", nl & (tmL >= 2) & (thick >= 0.002), ns & (tmS >= 2) & (thick >= 0.002))  # +HTF+구름
 
     n = len(sig); mid = n // 2
     h1, h2 = sig.iloc[:mid], sig.iloc[mid:]
-    days = max(1, n * 3 // 1440)
-    cnt = int(sig["B_long"].sum() + sig["B_short"].sum())
+    days = max(1, n * 10 // 1440)
     print("=" * 100)
-    print(f"3분봉 {n}개: {sig.index[0]:%Y-%m-%d} ~ {sig.index[-1]:%Y-%m-%d} (~{days}일)")
-    print(f"B 신호 {cnt}개 = 하루 {cnt/days:.1f}개  (참고: 10분봉은 하루 ~0.7개)")
-    print("[B. 라이브눌림목(MACD정렬) @ 3분봉]  청산=본절런너0.3%")
+    print(f"[{SYMBOL}] 10분 {n}봉 ~{days}일 | 진짜눌림목(N파동) | 미래참조없음 | 청산=본절런너0.3%")
     print("=" * 100)
-    for pname, s in [("전체", sig), ("전반부", h1), ("후반부", h2)]:
-        tr, ec = sim(s, long_col="B_long", short_col="B_short", be_after=0.003)
-        report(f"  {pname}", tr, ec)
+    variants = [("진짜눌림목(N파동)", "nw"), ("+구름≥0.2%", "nwc"),
+                ("+정직HTF", "nwh"), ("+HTF+구름", "nwhc")]
+    for label, pre in variants:
+        cnt = int(sig[pre + "_long"].sum() + sig[pre + "_short"].sum())
+        print(f"\n[{label}] 신호 {cnt}개")
+        for pname, s in [("전체", sig), ("전반", h1), ("후반", h2)]:
+            tr, ec = sim(s, long_col=pre + "_long", short_col=pre + "_short", be_after=0.003)
+            report(f"  {pname}", tr, ec)
     print("=" * 100)
-    print("※ 펀딩·슬리피지 제외. 참고용. 10분봉 B = +16.3%/PF2.58/승률74%(166일).")
+    print("※ 펀딩·슬리피지 제외. N파동=저점高+피보되돌림+직전고점돌파(확정피벗만). 참고용.")

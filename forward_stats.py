@@ -16,11 +16,14 @@ def main():
     pos = ex.position(SYMBOL)
     inc = ex.income_history(symbol=SYMBOL, limit=1000)
 
-    rp = [(int(x["time"]), float(x["income"])) for x in inc if x["incomeType"] == "REALIZED_PNL"]
+    # FORWARD_START(ms) 이후 거래만 집계 (예전 수동테스트 제외)
+    start_ms = int(os.environ.get("FORWARD_START_MS", "0"))
+    rp = [(int(x["time"]), float(x["income"])) for x in inc
+          if x["incomeType"] == "REALIZED_PNL" and int(x["time"]) >= start_ms]
     rp.sort()
     pnls = [p for _, p in rp]
-    fees = sum(float(x["income"]) for x in inc if x["incomeType"] == "COMMISSION")
-    fund = sum(float(x["income"]) for x in inc if x["incomeType"] == "FUNDING_FEE")
+    fees = sum(float(x["income"]) for x in inc if x["incomeType"] == "COMMISSION" and int(x["time"]) >= start_ms)
+    fund = sum(float(x["income"]) for x in inc if x["incomeType"] == "FUNDING_FEE" and int(x["time"]) >= start_ms)
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]
     n = len(pnls)

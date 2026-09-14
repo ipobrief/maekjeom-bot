@@ -42,11 +42,12 @@ def latest_signal():
     sig = strategy.build_signals(d10, d30, d1h, d2h, CFG)
     r = sig.iloc[-2]          # 마지막 '마감된' 봉 (마지막 행은 형성중)
     bar_time = sig.index[-2]
-    # 상위TF MACD 정렬(≥2/3): 롱=0선위&상향 / 숏=0선아래&하향
+    # 진입 = 맥점(막돌파) — TV 화살표와 동일(막돌파 fresh≥3). HTF필터는 옵션(기본 끔).
+    use_htf = os.environ.get("USE_HTF_FILTER", "0").lower() not in ("0", "false", "no")
     tmL = sum(int(r[f"boss_m0_{i}"] and r[f"boss_mu_{i}"]) for i in (1, 2, 3))
     tmS = sum(int((not r[f"boss_m0_{i}"]) and (not r[f"boss_mu_{i}"])) for i in (1, 2, 3))
-    b_long = bool(r["long"]) and r["fresh_long"] >= 3 and tmL >= 2
-    b_short = bool(r["short"]) and r["fresh_short"] >= 3 and tmS >= 2
+    b_long = bool(r["long"]) and r["fresh_long"] >= 3 and (tmL >= 2 if use_htf else True)
+    b_short = bool(r["short"]) and r["fresh_short"] >= 3 and (tmS >= 2 if use_htf else True)
     direction = "long" if b_long else ("short" if b_short else None)
     # 손절선(전저점/전고점), 무효시 ATR 대체
     if direction:
