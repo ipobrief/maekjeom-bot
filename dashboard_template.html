@@ -1,0 +1,233 @@
+<title>BTC 추세봇 Forward 현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#141b28; --panel2:#1a2333; --line:#26314633;
+    --border:#263146; --text:#e7edf6; --muted:#8a97ab; --faint:#5b6678;
+    --gold:#f0b429; --gain:#3fb970; --loss:#f0616d; --blue:#4c8dff;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --sans:"IBM Plex Sans KR",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(900px 500px at 85% -10%, #1a2740 0%, transparent 60%);}
+  .wrap{max-width:920px;margin:0 auto;padding:22px 18px 48px}
+  .tnum{font-variant-numeric:tabular-nums}
+  .mono{font-family:var(--mono)}
+
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin-bottom:6px}
+  h1{font-size:1.5rem;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+  h1 .tag{color:var(--gold)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.72rem;
+    font-weight:600;padding:4px 10px;border-radius:999px;letter-spacing:.02em}
+  .pill.live{background:#12351f;color:#5fe08e;border:1px solid #1f5c37}
+  .dot{width:7px;height:7px;border-radius:50%;background:#5fe08e;box-shadow:0 0 8px #5fe08e;
+    animation:blink 2s ease-in-out infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .pill.net{background:#3a1b1f;color:var(--loss);border:1px solid #5c2830}
+  .sub{color:var(--muted);font-size:.85rem;margin:2px 0 16px;font-family:var(--mono)}
+  .sub b{color:var(--text);font-weight:600}
+
+  .note{display:flex;gap:10px;background:#241d0d;border:1px solid #4a3a12;color:#e8c877;
+    padding:11px 14px;border-radius:10px;font-size:.86rem;margin-bottom:18px}
+  .note b{color:#f5d98a}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+  @media(min-width:620px){.grid{grid-template-columns:repeat(4,1fr)}}
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+  .tile .k{font-size:.72rem;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;margin-bottom:7px}
+  .tile .v{font-family:var(--mono);font-size:1.5rem;font-weight:600;letter-spacing:-.01em}
+  .tile .m{font-family:var(--mono);font-size:.76rem;color:var(--faint);margin-top:4px}
+  .v.gain{color:var(--gain)} .v.loss{color:var(--loss)} .v.gold{color:var(--gold)}
+  .tile.wide{grid-column:span 2}
+
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 17px;margin-bottom:16px}
+  .card h2{font-size:.95rem;font-weight:600;margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline}
+  .card h2 span{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-weight:400}
+
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.82rem}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;text-transform:uppercase;
+    letter-spacing:.03em;padding:0 0 8px}
+  td{padding:7px 0;border-top:1px solid var(--line);white-space:nowrap}
+  td.r,th.r{text-align:right}
+  .empty{color:var(--faint);text-align:center;padding:22px 0;font-family:var(--mono);font-size:.85rem}
+
+  .bench{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .bench .row{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);font-family:var(--mono);font-size:.85rem}
+  .bench .row:first-child{border-top:none}
+  .bench .lab{color:var(--muted)}
+  footer{color:var(--faint);font-size:.78rem;text-align:center;margin-top:22px;font-family:var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>BTC 추세봇 <span class="tag">Forward</span></h1>
+    <span class="pill live"><span class="dot"></span>가동중 · TESTNET</span>
+    <span class="pill net" id="netpill">순손익 —</span>
+  </header>
+  <div class="sub">
+    <b>BTCUSDT</b> · 10분봉 맥점(막돌파) · <b>10×</b> · 증거금 <b>$100</b> · 본절런너 0.3% · 주말 스킵
+  </div>
+
+  <div class="note"><span>⚠️</span><div id="notebody"></div></div>
+
+  <div class="grid" id="tiles"></div>
+
+  <div class="card">
+    <h2>누적 실현손익 <span id="curveinfo"></span></h2>
+    <div id="chart"></div>
+  </div>
+
+  <div class="card">
+    <h2>시간대별 성과 <span>변동성창 vs 횡보창 (KST)</span></h2>
+    <div class="bench" id="tod"></div>
+    <div id="hourly" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <h2>최근 거래 <span id="tcount"></span></h2>
+    <div id="trades"></div>
+  </div>
+
+  <div class="card">
+    <h2>백테스트 목표치 <span>10분 6개월</span></h2>
+    <div class="bench">
+      <div>
+        <div class="row"><span class="lab">수익률</span><b class="gain">+16.3%</b></div>
+        <div class="row"><span class="lab">PF</span><b>2.58</b></div>
+      </div>
+      <div>
+        <div class="row"><span class="lab">승률</span><b>74%</b></div>
+        <div class="row"><span class="lab">최대낙폭</span><b>-2.2%</b></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>마지막 업데이트 <span id="updated"></span> · 새로고침은 클로드에게 "대시보드 업데이트" 요청</footer>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+const f2=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const sgn=n=>(n>0?'+':'')+f2(n);
+const cls=n=>n>0?'gain':(n<0?'loss':'');
+const kst=t=>new Date(t).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+
+// 순손익 pill
+const net=DATA.net_pnl;
+const np=document.getElementById('netpill');
+np.textContent='순손익 '+sgn(net);
+np.className='pill '+(net>=0?'live':'net');
+
+// 상단 안내 배너 (거래 수에 따라 자동)
+(function(){
+  const nb=document.getElementById('notebody');
+  if(!DATA.n_trades){
+    nb.innerHTML='<b>거래 대기 중(0건).</b> TV 맥점(막돌파) 신호 + 본절런너로 테스트넷에서 검증 중. '+
+      '<b>참고:</b> 정직 백테스트는 마이너스였음 — 실전이 다른지 관찰하는 목적. 실계좌 아님(가짜돈).';
+  }else{
+    const good=DATA.net_pnl>=0;
+    nb.innerHTML='<b>거래 '+DATA.n_trades+'건 누적 · 순손익 '+sgn(DATA.net_pnl)+' USDT.</b> '+
+      (good?'실전이 백테스트(마이너스)와 다른 흐름 — 표본 더 쌓고 판단.'
+           :'백테스트(마이너스)와 같은 방향 — 표본 더 쌓고 판단.')+
+      ' 테스트넷(가짜돈).';
+  }
+})();
+
+// KPI 타일
+const balChg=DATA.balance-DATA.start_equity;
+const pos=DATA.position;
+const posTxt=pos.amt>0?'롱 '+pos.amt:(pos.amt<0?'숏 '+Math.abs(pos.amt):'없음');
+const tiles=[
+  {k:'잔고 (USDT)',v:f2(DATA.balance),m:(balChg>=0?'+':'')+f2(balChg)+' vs 시작',c:''},
+  {k:'순손익 (수수료포함)',v:sgn(net),m:'실현 '+sgn(DATA.realized_pnl)+' · 수수료 '+f2(DATA.fees),c:cls(net)},
+  {k:'승률',v:DATA.winrate+'%',m:DATA.wins+'승 '+DATA.losses+'패',c:'gold'},
+  {k:'거래수',v:DATA.n_trades,m:'PF '+DATA.pf,c:''},
+];
+document.getElementById('tiles').innerHTML=tiles.map(t=>
+  `<div class="tile"><div class="k">${t.k}</div><div class="v ${t.c} tnum">${t.v}</div><div class="m">${t.m}</div></div>`
+).join('')+
+  `<div class="tile wide"><div class="k">현재 포지션</div><div class="v ${pos.amt>0?'gain':(pos.amt<0?'loss':'')}">${posTxt}</div><div class="m">${pos.amt!==0?('진입 '+f2(pos.entry)+' · 평가손익 '+sgn(pos.unrealized)):'대기 중 (다음 신호 기다림)'}</div></div>`;
+
+// 누적 실현손익 차트
+(function(){
+  const d=DATA.curve;
+  if(!d.length){document.getElementById('chart').innerHTML='<div class="empty">거래가 쌓이면 누적 곡선이 표시됨</div>';
+    document.getElementById('curveinfo').textContent='0거래';return;}
+  const W=880,H=170,pad={l:8,r:8,t:14,b:14};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const vals=d.map(p=>p.cum);
+  let mn=Math.min(0,...vals), mx=Math.max(0,...vals);
+  if(mn===mx){mn-=1;mx+=1;} const rng=mx-mn;
+  const X=i=>pad.l+(d.length<2?iw/2:iw*i/(d.length-1));
+  const Y=v=>pad.t+ih*(1-(v-mn)/rng);
+  const pts=d.map((p,i)=>[X(i),Y(p.cum)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=line+` L${pts[pts.length-1][0].toFixed(1)} ${Y(mn).toFixed(1)} L${pts[0][0].toFixed(1)} ${Y(mn).toFixed(1)} Z`;
+  const zeroY=Y(0).toFixed(1);
+  const end=pts[pts.length-1];
+  const stroke=DATA.net_pnl>=0?'#3fb970':'#f0616d';
+  const fill=DATA.net_pnl>=0?'#3fb97022':'#f0616d22';
+  document.getElementById('chart').innerHTML=
+  `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="display:block">
+    <line x1="${pad.l}" y1="${zeroY}" x2="${W-pad.r}" y2="${zeroY}" stroke="#3a465c" stroke-width="1" stroke-dasharray="3 4"/>
+    <path d="${area}" fill="${fill}"/>
+    <path d="${line}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${end[0].toFixed(1)}" cy="${end[1].toFixed(1)}" r="3.5" fill="${stroke}"/>
+  </svg>`;
+  document.getElementById('curveinfo').textContent=d.length+'거래 · '+sgn(DATA.realized_pnl)+' USDT';
+})();
+
+// 최근 거래
+const tr=DATA.recent.slice().reverse();
+document.getElementById('tcount').textContent='최근 '+tr.length+'건';
+if(tr.length){
+  document.getElementById('trades').innerHTML=
+  `<table><thead><tr><th>시각 (KST)</th><th class="r">실현손익 (USDT)</th></tr></thead><tbody>`+
+  tr.map(x=>`<tr><td>${kst(x.t)}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`).join('')+
+  `</tbody></table>`;
+}else{
+  document.getElementById('trades').innerHTML='<div class="empty">아직 거래 없음 — 신호 대기 중</div>';
+}
+
+// 시간대별 성과 (변동성창 KST22~10 vs 횡보창 KST10~22)
+(function(){
+  const t=DATA.tod||{volatile:{n:0,pnl:0,winrate:0,pf:0},range:{n:0,pnl:0,winrate:0,pf:0},hourly:[]};
+  const box=(title,hint,b)=>`<div>
+    <div class="row"><span class="lab">${title}</span><span style="color:var(--faint);font-size:.78rem">${hint}</span></div>
+    <div class="row"><span class="lab">순손익</span><b class="${cls(b.pnl)}">${b.n?sgn(b.pnl):'—'}</b></div>
+    <div class="row"><span class="lab">거래·승률</span><b>${b.n}건 · ${b.n?b.winrate+'%':'—'}</b></div>
+    <div class="row"><span class="lab">PF</span><b>${b.n?b.pf:'—'}</b></div>
+  </div>`;
+  document.getElementById('tod').innerHTML=
+    box('🌙 변동성창','밤10~오전10시',t.volatile)+
+    box('☀️ 횡보창','오전10~밤10시',t.range);
+  const hh=t.hourly||[];
+  if(hh.length){
+    const mx=Math.max(1,...hh.map(x=>Math.abs(x.pnl)));
+    const map={}; hh.forEach(x=>map[x.h]=x);
+    let rows='';
+    for(let h=0;h<24;h++){
+      const x=map[h];
+      const inVol=(h>=22||h<10);
+      const lab=String(h).padStart(2,'0')+'시';
+      if(!x){rows+=`<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-family:var(--mono);font-size:.72rem"><span style="width:34px;color:var(--faint)">${lab}</span><span style="flex:1"></span><span style="width:56px;text-align:right;color:var(--faint)">·</span></div>`;continue;}
+      const w=Math.round(Math.abs(x.pnl)/mx*100);
+      const col=x.pnl>=0?'var(--gain)':'var(--loss)';
+      rows+=`<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-family:var(--mono);font-size:.72rem" title="${x.n}건">
+        <span style="width:34px;color:${inVol?'#e8c877':'var(--muted)'}">${lab}</span>
+        <span style="flex:1;height:9px;background:#1a2333;border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:${w}%;background:${col}"></span></span>
+        <span style="width:56px;text-align:right;color:${col}">${sgn(x.pnl)}</span></div>`;
+    }
+    document.getElementById('hourly').innerHTML='<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">시간별 손익 (노란 시각=변동성창)</div>'+rows;
+  }else{
+    document.getElementById('hourly').innerHTML='<div class="empty">거래가 쌓이면 시간대별로 표시됨</div>';
+  }
+})();
+
+document.getElementById('updated').textContent=kst(DATA.updated).replace(',', '');
+</script>
