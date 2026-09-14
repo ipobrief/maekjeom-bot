@@ -35,6 +35,36 @@ def main():
         cum += p
         curve.append({"t": t, "cum": round(cum, 4)})
 
+    # 시간대별 분석: KST 밤10~오전10시(변동성/추세) vs 오전10~밤10시(횡보)
+    # ms(UTC) → KST 시각(UTC+9). 변동성창 = KST hour ∈ [22,23,0..9]
+    def kst_hour(ms):
+        return int(((ms // 3600000) + 9) % 24)
+
+    def bucket(pnls_by_hour):
+        s = sum(p for _, p in pnls_by_hour)
+        w = [p for _, p in pnls_by_hour if p > 0]
+        l = [p for _, p in pnls_by_hour if p < 0]
+        nn = len(pnls_by_hour)
+        return {
+            "n": nn, "pnl": round(s, 3),
+            "winrate": round(len(w) / nn * 100, 1) if nn else 0.0,
+            "pf": round(sum(w) / abs(sum(l)), 2) if l else (99.9 if w else 0.0),
+        }
+
+    vol_hours = set([22, 23] + list(range(0, 10)))   # 변동성/추세 시간
+    vol = [(t, p) for t, p in rp if kst_hour(t) in vol_hours]
+    rng = [(t, p) for t, p in rp if kst_hour(t) not in vol_hours]
+    by_hour = {}
+    for t, p in rp:
+        h = kst_hour(t)
+        by_hour.setdefault(h, []).append(p)
+    hourly = [{"h": h, "n": len(v), "pnl": round(sum(v), 3)} for h, v in sorted(by_hour.items())]
+    tod = {
+        "volatile": bucket(vol),   # KST 22~10시
+        "range": bucket(rng),      # KST 10~22시
+        "hourly": hourly,
+    }
+
     state_file = f"trend_state_{SYMBOL}.json"
     state = json.load(open(state_file, encoding="utf-8")) if os.path.exists(state_file) else None
 
@@ -60,6 +90,7 @@ def main():
         "avg_loss": round(sum(losses) / len(losses), 3) if losses else 0.0,
         "recent": [{"t": t, "pnl": round(p, 3)} for t, p in rp[-15:]],
         "curve": curve,
+        "tod": tod,
         "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     print(json.dumps(out, ensure_ascii=False))
