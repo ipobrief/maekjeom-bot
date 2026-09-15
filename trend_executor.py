@@ -51,6 +51,7 @@ class TrendExecutor:
         self.cfg = dict(CFG, **(cfg or {}))
         self.symbol = self.cfg["symbol"]
         self.state_file = f"trend_state_{self.symbol}.json"
+        self.trades_file = f"trades_{self.symbol}.jsonl"
         self.state = self._load()
 
     def _load(self):
@@ -74,11 +75,33 @@ class TrendExecutor:
         self.state = None
         self._save()
 
+    def _record_close(self, exit_px, reason, qty):
+        """청산 시 거래기록 1줄 append (진입·청산시각 포함). PnL은 forward_stats가
+        income_history를 closed_ms로 매칭해 채움(수수료 정확)."""
+        if not self.state:
+            return
+        rec = {
+            "dir": self.state["dir"],
+            "entry": self.state["entry"],
+            "exit": round(exit_px, 2) if exit_px else None,
+            "qty": qty,
+            "opened": self.state.get("opened"),
+            "closed": datetime.now(KST).isoformat(),
+            "closed_ms": int(time.time() * 1000),
+            "reason": reason,
+            "meta": self.state.get("meta", {}),
+        }
+        try:
+            with open(self.trades_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except Exception as e:
+            log.warning("거래기록 저장 실패: %s", e)
+
     def position_amt(self):
         return self.ex.position(self.symbol)["amt"]
 
     # ── 진입 ──────────────────────────────────────────────────────────────────
-    def enter(self, direction, swing_sl):
+    def enter(self, direction, swing_sl, meta=None):
         if self.cfg["weekend_off"] and is_weekend_kst():
             log.info("주말(KST) — 진입 스킵"); return None
         if abs(self.position_amt()) > 0 or self.state is not None:
@@ -98,7 +121,8 @@ class TrendExecutor:
             return None
         self.state = {"dir": direction, "entry": entry, "swing_sl": swing_sl,
                       "peak": entry, "trough": entry, "be_active": False,
-                      "opened": datetime.now(KST).isoformat()}
+                      "opened": datetime.now(KST).isoformat(),
+                      "meta": meta or {}}
         self._save()
         log.info("진입 %s qty=%s entry=%.2f 손절=%.2f (+%.1f%%유리시 본절)",
                  direction, qty, entry, swing_sl, self.cfg["be_after"] * 100)
@@ -131,13 +155,17 @@ class TrendExecutor:
             stop = self.state["swing_sl"]
         if (price <= stop) if is_long else (price >= stop):
             self.ex.market_order(self.symbol, "SELL" if is_long else "BUY", abs(amt), reduce_only=True)
-            log.info("%s 히트 @%.2f (stop=%.2f) → 청산", "본절" if self.state["be_active"] else "손절", price, stop)
+            reason = "본절" if self.state["be_active"] else "손절"
+            log.info("%s 히트 @%.2f (stop=%.2f) → 청산", reason, price, stop)
+            self._record_close(price, reason, abs(amt))
             self._reset()
 
     def exit_now(self, reason="opposite_signal"):
         amt = self.position_amt()
+        exit_px = self.ex.mark_price(self.symbol) if amt != 0 else None
         if amt != 0:
             self.ex.market_order(self.symbol, "SELL" if amt > 0 else "BUY", abs(amt), reduce_only=True)
+            self._record_close(exit_px, reason, abs(amt))
         log.info("청산(%s) 완료", reason)
         self._reset()
 

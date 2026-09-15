@@ -33,8 +33,41 @@ CFG = {  # ws_watch_10m 지표설정과 동일
 }
 
 
+def _regime_metrics(d10, n=14):
+    """진입 시점의 국면판별 지표(마지막 마감봉 기준). 화면 인디케이터와 무관한
+    독립계산이라, '어떤 지표가 승/패를 가르나'를 사후 분석하려는 로깅용."""
+    import numpy as np
+    h, l, c = d10["high"], d10["low"], d10["close"]
+    prev = c.shift(1)
+    tr = np.maximum(h - l, np.maximum((h - prev).abs(), (l - prev).abs()))
+    # ADX(14, Wilder)
+    up, dn = h.diff(), -l.diff()
+    plus_dm = ((up > dn) & (up > 0)) * up.clip(lower=0)
+    minus_dm = ((dn > up) & (dn > 0)) * dn.clip(lower=0)
+    atr = tr.ewm(alpha=1 / n, adjust=False).mean()
+    pdi = 100 * plus_dm.ewm(alpha=1 / n, adjust=False).mean() / atr
+    mdi = 100 * minus_dm.ewm(alpha=1 / n, adjust=False).mean() / atr
+    dx = 100 * (pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan)
+    adx = dx.ewm(alpha=1 / n, adjust=False).mean()
+    # Choppiness Index(14): 높을수록 횡보(>61.8), 낮을수록 추세(<38.2)
+    chop = 100 * np.log10(tr.rolling(n).sum() / (h.rolling(n).max() - l.rolling(n).min())) / np.log10(n)
+    # 볼린저밴드 폭(20,2) = (상단-하단)/중심 %
+    mid = c.rolling(20).mean()
+    sd = c.rolling(20).std()
+    bbw = (4 * sd) / mid * 100
+    # 일목 구름두께 % = |선행A-선행B|/종가 (얇을수록 횡보)
+    ten = (h.rolling(9).max() + l.rolling(9).min()) / 2
+    kij = (h.rolling(26).max() + l.rolling(26).min()) / 2
+    spanA = (ten + kij) / 2
+    spanB = (h.rolling(52).max() + l.rolling(52).min()) / 2
+    cloud = (spanA - spanB).abs() / c * 100
+    g = lambda s: (None if s.iloc[-2] != s.iloc[-2] else round(float(s.iloc[-2]), 3))
+    return {"adx": g(adx), "chop": g(chop), "bbw": g(bbw), "cloud": g(cloud)}
+
+
 def latest_signal():
-    """최근 마감된 10분봉의 B 신호를 반환: (direction|None, swing_sl, opp_exit_long, opp_exit_short)."""
+    """최근 마감된 10분봉의 신호. 진입=막돌파(화살표), 청산=반대 맥점(매수/매도맥점, 화면 표시).
+    반환: (direction, swing_sl, exit_long_sig, exit_short_sig, bar_time, close, meta)."""
     d10 = data.get_history(SYMBOL, "10m", bars=600)
     d30 = data.get_history(SYMBOL, "30m", bars=300)
     d1h = data.get_history(SYMBOL, "1h", bars=200)
@@ -58,7 +91,11 @@ def latest_signal():
             swing = px - r["atr"] * CFG["atr_stop_mult"] * (1 if is_long else -1)
     else:
         swing = None
-    return direction, swing, bool(r["long_exit"]), bool(r["short_exit"]), bar_time, r["close"]
+    # 청산 = 화면에 보이는 반대 맥점 (롱청산=매도맥점 r["short"], 숏청산=매수맥점 r["long"])
+    exit_long_sig = bool(r["short"])   # 매도맥점 → 롱 청산
+    exit_short_sig = bool(r["long"])   # 매수맥점 → 숏 청산
+    meta = _regime_metrics(d10) if direction else None
+    return direction, swing, exit_long_sig, exit_short_sig, bar_time, r["close"], meta
 
 
 def main():
@@ -72,7 +109,7 @@ def main():
             # 1) 항상 포지션 감시(본절/손절)
             ex.check()
             # 2) 새 봉 마감 시에만 신호 처리
-            direction, swing, oxl, oxs, bar_time, close = latest_signal()
+            direction, swing, oxl, oxs, bar_time, close, meta = latest_signal()
             if bar_time != last_bar:
                 last_bar = bar_time
                 in_pos = ex.state is not None
@@ -81,12 +118,12 @@ def main():
                          close, direction or "-", ex.state["dir"] if in_pos else "-")
                 if in_pos:
                     is_long = ex.state["dir"] == "long"
-                    if (oxl if is_long else oxs):   # 반대신호 → 청산
-                        log.info("반대신호 감지 → 청산")
+                    if (oxl if is_long else oxs):   # 반대 맥점(매수/매도맥점) → 청산
+                        log.info("반대 맥점(%s) 감지 → 청산", "매도맥점" if is_long else "매수맥점")
                         ex.exit_now("opposite_signal")
                 elif direction and not (ex.cfg["weekend_off"] and is_weekend_kst()):
-                    log.info("눌림목 진입 신호(%s) → enter", direction)
-                    ex.enter(direction, swing)
+                    log.info("막돌파 진입 신호(%s) → enter | 국면 %s", direction, meta)
+                    ex.enter(direction, swing, meta)
         except Exception as e:
             log.warning("루프 오류: %s", e)
         time.sleep(POLL)

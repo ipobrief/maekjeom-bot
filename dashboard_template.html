@@ -82,7 +82,7 @@
   </div>
 
   <div class="card">
-    <h2>시간대별 성과 <span>변동성창 vs 횡보창 (KST)</span></h2>
+    <h2>시간대별 성과 <span>진입시각 기준 · 변동성창 vs 횡보창 (KST)</span></h2>
     <div class="bench" id="tod"></div>
     <div id="hourly" style="margin-top:14px"></div>
   </div>
@@ -198,14 +198,19 @@ document.getElementById('tiles').innerHTML=tiles.map(t=>
   document.getElementById('curveinfo').textContent=d.length+'거래 · '+sgn(DATA.realized_pnl)+' USDT';
 })();
 
-// 최근 거래
+// 최근 거래 (진입→청산, KST)
 const tr=DATA.recent.slice().reverse();
 document.getElementById('tcount').textContent='최근 '+tr.length+'건';
+const dirTag=d=>d==='long'?'<span style="color:var(--gain)">롱</span>':(d==='short'?'<span style="color:var(--loss)">숏</span>':'—');
 if(tr.length){
   document.getElementById('trades').innerHTML=
-  `<table><thead><tr><th>시각 (KST)</th><th class="r">실현손익 (USDT)</th></tr></thead><tbody>`+
-  tr.map(x=>`<tr><td>${kst(x.t)}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`).join('')+
-  `</tbody></table>`;
+  `<div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th class="r">ADX</th><th class="r">실현손익</th></tr></thead><tbody>`+
+  tr.map(x=>{
+    const m=x.meta||{};
+    const adx=(m.adx!=null)?f2(m.adx):'—';
+    return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td class="r" style="color:var(--muted)">${adx}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`;
+  }).join('')+
+  `</tbody></table></div>`;
 }else{
   document.getElementById('trades').innerHTML='<div class="empty">아직 거래 없음 — 신호 대기 중</div>';
 }

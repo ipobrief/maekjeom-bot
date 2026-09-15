@@ -8,6 +8,19 @@ import datetime
 from binance_futures import BinanceFutures
 
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")
+KST = datetime.timezone(datetime.timedelta(hours=9))
+MATCH_WIN_MS = 180000  # 거래로그 청산시각 ↔ income 실현시각 매칭 허용오차(3분)
+
+
+def _opened_ms(rec):
+    """거래로그의 opened(KST ISO) → epoch ms. 없으면 None."""
+    o = rec.get("opened")
+    if not o:
+        return None
+    try:
+        return int(datetime.datetime.fromisoformat(o).timestamp() * 1000)
+    except Exception:
+        return None
 
 
 def main():
@@ -18,50 +31,94 @@ def main():
 
     # FORWARD_START(ms) 이후 거래만 집계 (예전 수동테스트 제외)
     start_ms = int(os.environ.get("FORWARD_START_MS", "0"))
-    rp = [(int(x["time"]), float(x["income"])) for x in inc
-          if x["incomeType"] == "REALIZED_PNL" and int(x["time"]) >= start_ms]
+    rp = [[int(x["time"]), float(x["income"]), False]   # [청산ms, pnl, 소비여부]
+          for x in inc if x["incomeType"] == "REALIZED_PNL" and int(x["time"]) >= start_ms]
     rp.sort()
-    pnls = [p for _, p in rp]
     fees = sum(float(x["income"]) for x in inc if x["incomeType"] == "COMMISSION" and int(x["time"]) >= start_ms)
     fund = sum(float(x["income"]) for x in inc if x["incomeType"] == "FUNDING_FEE" and int(x["time"]) >= start_ms)
+
+    # 거래로그(봇이 남긴 진입·청산시각) 로드 → income과 청산시각으로 매칭해 진입기준 거래단위 구성
+    trades = []
+    tlog = f"trades_{SYMBOL}.jsonl"
+    if os.path.exists(tlog):
+        with open(tlog, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                cm = int(rec.get("closed_ms", 0))
+                if cm < start_ms:
+                    continue
+                # 이 거래의 청산시각 근처 income 실현손익 합산(부분체결 여러줄 대응)
+                pnl = 0.0
+                matched = False
+                for row in rp:
+                    if not row[2] and abs(row[0] - cm) <= MATCH_WIN_MS:
+                        pnl += row[1]
+                        row[2] = True
+                        matched = True
+                om = _opened_ms(rec)
+                trades.append({
+                    "dir": rec.get("dir"),
+                    "open_ms": om,
+                    "close_ms": cm,
+                    "entry_ms": om if om is not None else cm,  # 진입기준(없으면 청산으로 대체)
+                    "pnl": round(pnl, 3),
+                    "matched": matched,
+                    "meta": rec.get("meta") or {},
+                })
+
+    # 로그에 없는 income(로깅 이전 거래) → 진입시각 불명 → 청산시각으로 대체
+    for row in rp:
+        if not row[2]:
+            trades.append({
+                "dir": None, "open_ms": None, "close_ms": row[0],
+                "entry_ms": row[0], "pnl": round(row[1], 3), "matched": False,
+                "meta": {},
+            })
+
+    trades.sort(key=lambda x: x["close_ms"])
+    pnls = [t["pnl"] for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]
     n = len(pnls)
 
-    # 누적 실현손익 곡선
+    # 누적 실현손익 곡선(청산순)
     cum = 0.0
     curve = []
-    for t, p in rp:
-        cum += p
-        curve.append({"t": t, "cum": round(cum, 4)})
+    for t in trades:
+        cum += t["pnl"]
+        curve.append({"t": t["close_ms"], "cum": round(cum, 4)})
 
-    # 시간대별 분석: KST 밤10~오전10시(변동성/추세) vs 오전10~밤10시(횡보)
-    # ms(UTC) → KST 시각(UTC+9). 변동성창 = KST hour ∈ [22,23,0..9]
-    def kst_hour(ms):
-        return int(((ms // 3600000) + 9) % 24)
+    # 시간대별 분석 — ★진입시각 기준★. 변동성창 = KST hour ∈ [22,23,0..9]
+    def entry_hour(ms):
+        return datetime.datetime.fromtimestamp(ms / 1000, KST).hour
 
-    def bucket(pnls_by_hour):
-        s = sum(p for _, p in pnls_by_hour)
-        w = [p for _, p in pnls_by_hour if p > 0]
-        l = [p for _, p in pnls_by_hour if p < 0]
-        nn = len(pnls_by_hour)
+    def bucket(items):
+        s = sum(t["pnl"] for t in items)
+        w = [t for t in items if t["pnl"] > 0]
+        l = [t for t in items if t["pnl"] < 0]
+        nn = len(items)
         return {
             "n": nn, "pnl": round(s, 3),
             "winrate": round(len(w) / nn * 100, 1) if nn else 0.0,
-            "pf": round(sum(w) / abs(sum(l)), 2) if l else (99.9 if w else 0.0),
+            "pf": round(sum(t["pnl"] for t in w) / abs(sum(t["pnl"] for t in l)), 2) if l else (99.9 if w else 0.0),
         }
 
-    vol_hours = set([22, 23] + list(range(0, 10)))   # 변동성/추세 시간
-    vol = [(t, p) for t, p in rp if kst_hour(t) in vol_hours]
-    rng = [(t, p) for t, p in rp if kst_hour(t) not in vol_hours]
+    vol_hours = set([22, 23] + list(range(0, 10)))
+    vol = [t for t in trades if entry_hour(t["entry_ms"]) in vol_hours]
+    rng = [t for t in trades if entry_hour(t["entry_ms"]) not in vol_hours]
     by_hour = {}
-    for t, p in rp:
-        h = kst_hour(t)
-        by_hour.setdefault(h, []).append(p)
+    for t in trades:
+        by_hour.setdefault(entry_hour(t["entry_ms"]), []).append(t["pnl"])
     hourly = [{"h": h, "n": len(v), "pnl": round(sum(v), 3)} for h, v in sorted(by_hour.items())]
     tod = {
-        "volatile": bucket(vol),   # KST 22~10시
-        "range": bucket(rng),      # KST 10~22시
+        "volatile": bucket(vol),   # 진입 KST 22~10시
+        "range": bucket(rng),      # 진입 KST 10~22시
         "hourly": hourly,
     }
 
@@ -88,7 +145,8 @@ def main():
         "pf": round(sum(wins) / abs(sum(losses)), 2) if losses else (99.9 if wins else 0.0),
         "avg_win": round(sum(wins) / len(wins), 3) if wins else 0.0,
         "avg_loss": round(sum(losses) / len(losses), 3) if losses else 0.0,
-        "recent": [{"t": t, "pnl": round(p, 3)} for t, p in rp[-15:]],
+        "recent": [{"dir": t["dir"], "open_ms": t["open_ms"], "close_ms": t["close_ms"],
+                    "pnl": t["pnl"], "meta": t["meta"]} for t in trades[-15:]],
         "curve": curve,
         "tod": tod,
         "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
