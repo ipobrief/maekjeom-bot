@@ -148,10 +148,26 @@ const tiles=[
   {k:'승률',v:DATA.winrate+'%',m:DATA.wins+'승 '+DATA.losses+'패',c:'gold'},
   {k:'거래수',v:DATA.n_trades,m:'PF '+DATA.pf,c:''},
 ];
+// 현재 포지션 상세
+const lev=DATA.leverage, marg=DATA.margin_per_trade, notion=marg*lev;
+const st=DATA.state;
+let posDetail;
+if(pos.amt!==0){
+  const openTime=(st&&st.opened)?kst(st.opened):'—';
+  const qty=Math.abs(pos.amt);
+  const beTag=(st&&st.be_active)?' <span style="color:var(--gain)">🛡️ 본절 이동됨(손실차단)</span>':'';
+  posDetail=
+    `<div style="margin-bottom:5px">진입시간 <b style="color:var(--text)">${openTime}</b>${beTag}</div>`+
+    `<div>진입가 ${f2(pos.entry)} · 평가손익 <b class="${cls(pos.unrealized)}" style="color:${pos.unrealized>=0?'var(--gain)':'var(--loss)'}">${sgn(pos.unrealized)}</b></div>`+
+    `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)">증거금 $${f2(marg)} × ${lev}배 = 명목 <b style="color:var(--text)">$${f2(notion)}</b></div>`+
+    `<div>→ 진입가 ${f2(pos.entry)}에서 $${f2(notion)}어치 = <b style="color:var(--text)">${qty} BTC</b></div>`;
+}else{
+  posDetail=`대기 중 (다음 신호 기다림) · 진입 시 증거금 $${f2(marg)} × ${lev}배 = 명목 $${f2(notion)}`;
+}
 document.getElementById('tiles').innerHTML=tiles.map(t=>
   `<div class="tile"><div class="k">${t.k}</div><div class="v ${t.c} tnum">${t.v}</div><div class="m">${t.m}</div></div>`
 ).join('')+
-  `<div class="tile wide"><div class="k">현재 포지션</div><div class="v ${pos.amt>0?'gain':(pos.amt<0?'loss':'')}">${posTxt}</div><div class="m">${pos.amt!==0?('진입 '+f2(pos.entry)+' · 평가손익 '+sgn(pos.unrealized)):'대기 중 (다음 신호 기다림)'}</div></div>`;
+  `<div class="tile wide"><div class="k">현재 포지션</div><div class="v ${pos.amt>0?'gain':(pos.amt<0?'loss':'')}">${posTxt}</div><div class="m" style="line-height:1.6">${posDetail}</div></div>`;
 
 // 누적 실현손익 차트
 (function(){
