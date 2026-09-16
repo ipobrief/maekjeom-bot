@@ -202,13 +202,17 @@ document.getElementById('tiles').innerHTML=tiles.map(t=>
 const tr=DATA.recent.slice().reverse();
 document.getElementById('tcount').textContent='최근 '+tr.length+'건';
 const dirTag=d=>d==='long'?'<span style="color:var(--gain)">롱</span>':(d==='short'?'<span style="color:var(--loss)">숏</span>':'—');
+const reasonTag=r=>{
+  const m={opposite_signal:['반대맥점','var(--blue)'],'본절':['본절','var(--gold)'],'손절':['손절','var(--loss)'],manual:['수동','var(--muted)']};
+  const v=m[r]; return v?`<span style="color:${v[1]}">${v[0]}</span>`:'<span style="color:var(--faint)">—</span>';
+};
 if(tr.length){
   document.getElementById('trades').innerHTML=
-  `<div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th class="r">ADX</th><th class="r">실현손익</th></tr></thead><tbody>`+
+  `<div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">ADX</th><th class="r">실현손익</th></tr></thead><tbody>`+
   tr.map(x=>{
     const m=x.meta||{};
     const adx=(m.adx!=null)?f2(m.adx):'—';
-    return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td class="r" style="color:var(--muted)">${adx}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`;
+    return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r" style="color:var(--muted)">${adx}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`;
   }).join('')+
   `</tbody></table></div>`;
 }else{

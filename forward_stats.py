@@ -70,6 +70,7 @@ def main():
                     "pnl": round(pnl, 3),
                     "matched": matched,
                     "meta": rec.get("meta") or {},
+                    "reason": rec.get("reason"),
                 })
 
     # 로그에 없는 income(로깅 이전 거래) → 진입시각 불명 → 청산시각으로 대체
@@ -78,7 +79,7 @@ def main():
             trades.append({
                 "dir": None, "open_ms": None, "close_ms": row[0],
                 "entry_ms": row[0], "pnl": round(row[1], 3), "matched": False,
-                "meta": {},
+                "meta": {}, "reason": None,
             })
 
     trades.sort(key=lambda x: x["close_ms"])
@@ -146,7 +147,8 @@ def main():
         "avg_win": round(sum(wins) / len(wins), 3) if wins else 0.0,
         "avg_loss": round(sum(losses) / len(losses), 3) if losses else 0.0,
         "recent": [{"dir": t["dir"], "open_ms": t["open_ms"], "close_ms": t["close_ms"],
-                    "pnl": t["pnl"], "meta": t["meta"]} for t in trades[-15:]],
+                    "pnl": t["pnl"], "meta": t["meta"], "reason": t.get("reason")}
+                   for t in trades[-15:]],
         "curve": curve,
         "tod": tod,
         "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
