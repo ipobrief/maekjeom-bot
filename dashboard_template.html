@@ -208,11 +208,12 @@ const reasonTag=r=>{
 };
 if(tr.length){
   document.getElementById('trades').innerHTML=
-  `<div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">ADX</th><th class="r">실현손익</th></tr></thead><tbody>`+
+  `<div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">ADX</th><th class="r">실현손익</th><th class="r">수익률(ROE)</th></tr></thead><tbody>`+
   tr.map(x=>{
     const m=x.meta||{};
     const adx=(m.adx!=null)?f2(m.adx):'—';
-    return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r" style="color:var(--muted)">${adx}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`;
+    const roe=DATA.margin_per_trade?(x.pnl/DATA.margin_per_trade*100):0;
+    return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r" style="color:var(--muted)">${adx}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td><td class="r ${cls(x.pnl)}">${sgn(roe)}%</td></tr>`;
   }).join('')+
   `</tbody></table></div>`;
 }else{
