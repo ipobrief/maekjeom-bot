@@ -68,9 +68,7 @@
     <span class="pill live"><span class="dot"></span>가동중 · TESTNET</span>
     <span class="pill net" id="netpill">순손익 —</span>
   </header>
-  <div class="sub">
-    <b>BTCUSDT</b> · 10분봉 맥점(막돌파) · <b>10×</b> · 증거금 <b>$100</b> · 본절런너 0.3% · 주말 스킵
-  </div>
+  <div class="sub" id="subline"></div>
 
   <div class="note"><span>⚠️</span><div id="notebody"></div></div>
 
@@ -116,6 +114,10 @@ const f2=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDig
 const sgn=n=>(n>0?'+':'')+f2(n);
 const cls=n=>n>0?'gain':(n<0?'loss':'');
 const kst=t=>new Date(t).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+
+// 상단 요약줄 (레버리지·증거금 동적)
+document.getElementById('subline').innerHTML=
+  '<b>'+DATA.symbol+'</b> · 10분봉 맥점(막돌파) · <b>'+DATA.leverage+'×</b> · 증거금 <b>$'+f2(DATA.margin_per_trade)+'</b> · 본절런너 0.3% · 주말 스킵';
 
 // 순손익 pill
 const net=DATA.net_pnl;
