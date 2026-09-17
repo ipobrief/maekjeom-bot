@@ -2,8 +2,9 @@
 """
 트랙2 forward 검증 실행기 (독립) — 기존 알림봇은 안 건드림.
 
-B설정(백테스트 검증): 10분봉 눌림목(막돌파 fresh≥3 + 상위TF MACD 정렬≥2/3) 진입,
-  청산=본절런너(초기 전저점손절 → +0.3% 유리 시 본절 → 반대신호 청산).
+진입=막돌파(fresh≥3, TV 화살표와 동일). 청산=반대 막돌파(fresh≥3)만 or 본절/손절.
+  느슨한 맥점(fresh<3)으론 진입·청산 둘 다 안 함(2026-09-17 사용자 확정).
+  본절런너(초기 전저점손절 → +0.3% 유리 시 본절 → 반대 막돌파 시 청산).
 
 동작:
   · 매 POLL초: executor.check() (마크가격으로 본절/손절 감시)
@@ -91,9 +92,9 @@ def latest_signal():
             swing = px - r["atr"] * CFG["atr_stop_mult"] * (1 if is_long else -1)
     else:
         swing = None
-    # 청산 = 화면에 보이는 반대 맥점 (롱청산=매도맥점 r["short"], 숏청산=매수맥점 r["long"])
-    exit_long_sig = bool(r["short"])   # 매도맥점 → 롱 청산
-    exit_short_sig = bool(r["long"])   # 매수맥점 → 숏 청산
+    # 청산 = 반대 '막돌파'(fresh≥3)에서만 — 진입과 동일 기준(느슨맥점으론 청산 안 함)
+    exit_long_sig = bool(r["short"]) and r["fresh_short"] >= 3   # 매도막돌파 → 롱 청산
+    exit_short_sig = bool(r["long"]) and r["fresh_long"] >= 3    # 매수막돌파 → 숏 청산
     meta = _regime_metrics(d10) if direction else None
     return direction, swing, exit_long_sig, exit_short_sig, bar_time, r["close"], meta
 
@@ -118,8 +119,8 @@ def main():
                          close, direction or "-", ex.state["dir"] if in_pos else "-")
                 if in_pos:
                     is_long = ex.state["dir"] == "long"
-                    if (oxl if is_long else oxs):   # 반대 맥점(매수/매도맥점) → 청산
-                        log.info("반대 맥점(%s) 감지 → 청산", "매도맥점" if is_long else "매수맥점")
+                    if (oxl if is_long else oxs):   # 반대 막돌파(fresh≥3) → 청산
+                        log.info("반대 막돌파(%s) 감지 → 청산", "매도막돌파" if is_long else "매수막돌파")
                         ex.exit_now("opposite_signal")
                 elif direction and not (ex.cfg["weekend_off"] and is_weekend_kst()):
                     log.info("막돌파 진입 신호(%s) → enter | 국면 %s", direction, meta)

@@ -19,7 +19,7 @@ endMode = input.string("핵심조건(선행스팬1·스토50) 이탈 시 종료"
      options=["핵심조건(선행스팬1·스토50) 이탈 시 종료", "반대 맥점까지 유지"], group=gZ)
 showSig = input.bool(true,  "맥점 화살표 표시", group=gZ)
 showFresh = input.bool(true, "⚡막돌파(fresh≥3) 별도 마커 — 봇 '진입' 기준", tooltip="맥점 중 3그룹(MACD·스토·RCI)이 최근 창 안에 '동시' 점등한 것만. 봇이 실제로 진입에 쓰는 신호. 굵은 화살표 + '막돌파' 텍스트.", group=gZ)
-showLoose = input.bool(true, "·느슨한 맥점(막돌파 아님) 마커 — 봇 '진입 안 함'", tooltip="맥점(필수2+나머지≥3)은 맞지만 fresh<3 이라 막돌파는 아님 → 봇은 진입 안 함(반대편이면 청산엔 쓰임). 작은 점으로 표시.", group=gZ)
+showLoose = input.bool(true, "·느슨한 맥점(막돌파 아님) 마커 — 봇 무시(참고용)", tooltip="맥점(필수2+나머지≥3)은 맞지만 fresh<3 이라 막돌파 아님. 봇은 2026-09-17부터 진입·청산 모두 '막돌파'만 사용 → 느슨맥점은 참고용(봇 행동과 무관). 작은 점으로 표시.", group=gZ)
 showLbl = input.bool(true,  "현재 구역 라벨 표시", group=gZ)
 scope   = input.string("전체 기록", "표시 범위",
      options=["전체 기록", "현재 구역만"], tooltip="'현재 구역만' = 진행중인 구역 하나만 박스로 표시, 과거 음영·화살표 숨김", group=gZ)
