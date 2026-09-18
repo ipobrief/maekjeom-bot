@@ -133,9 +133,10 @@ def latest_signal():
 
 def main():
     ex = TrendExecutor()
-    log.info("forward 시작: %s | %s | 증거금 %s×%sx | 본절+%.1f%% | 1분ADX게이트≥%.0f | 주말스킵 %s",
+    be_txt = ("본절+%.1f%%" % (ex.cfg["be_after"] * 100)) if ex.cfg["be_after"] > 0 else "본절없음(홀드)"
+    log.info("forward 시작: %s | %s | 증거금 %s×%sx | %s | 1분ADX게이트≥%.0f | 주말스킵 %s",
              SYMBOL, "테스트넷" if ex.ex.testnet else "★실계좌★",
-             ex.cfg["margin_per_trade"], ex.cfg["leverage"], ex.cfg["be_after"] * 100,
+             ex.cfg["margin_per_trade"], ex.cfg["leverage"], be_txt,
              ADX1M_MIN, ex.cfg["weekend_off"])
     last_bar = None
     while True:

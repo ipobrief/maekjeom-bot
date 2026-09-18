@@ -124,8 +124,9 @@ class TrendExecutor:
                       "opened": datetime.now(KST).isoformat(),
                       "meta": meta or {}}
         self._save()
-        log.info("진입 %s qty=%s entry=%.2f 손절=%.2f (+%.1f%%유리시 본절)",
-                 direction, qty, entry, swing_sl, self.cfg["be_after"] * 100)
+        be_txt = ("+%.1f%%유리시 본절" % (self.cfg["be_after"] * 100)) if self.cfg["be_after"] > 0 else "본절없음(반대막돌파까지 홀드)"
+        log.info("진입 %s qty=%s entry=%.2f 손절=%.2f (%s)",
+                 direction, qty, entry, swing_sl, be_txt)
         return self.state
 
     # ── 감시: 본절 이동 + 손절 히트 ───────────────────────────────────────────
@@ -140,8 +141,8 @@ class TrendExecutor:
         price = self.ex.mark_price(self.symbol)
         self.state["peak"] = max(self.state["peak"], price)
         self.state["trough"] = min(self.state["trough"], price)
-        # 본절 활성화
-        if not self.state["be_active"]:
+        # 본절 활성화 (be_after<=0 이면 본절 이동 안 함 — 초기손절만, 반대막돌파까지 홀드)
+        if self.cfg["be_after"] > 0 and not self.state["be_active"]:
             fav = (self.state["peak"] >= entry * (1 + self.cfg["be_after"])) if is_long \
                 else (self.state["trough"] <= entry * (1 - self.cfg["be_after"]))
             if fav:
