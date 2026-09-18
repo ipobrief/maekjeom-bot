@@ -131,6 +131,7 @@ def main():
         "symbol": SYMBOL,
         "leverage": int(os.environ.get("LEVERAGE", 10)),
         "margin_per_trade": float(os.environ.get("MARGIN_PER_TRADE", 100)),
+        "be_after": float(os.environ.get("BE_AFTER", 0.003)),
         "balance": round(bal, 2),
         "avail": round(avail, 2),
         "position": {"amt": pos["amt"], "entry": pos["entry"], "unrealized": round(pos["unrealized"], 3)},

@@ -116,8 +116,9 @@ const cls=n=>n>0?'gain':(n<0?'loss':'');
 const kst=t=>new Date(t).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 
 // 상단 요약줄 (레버리지·증거금 동적)
+const beTxt=(DATA.be_after&&DATA.be_after>0)?('본절런너 '+(DATA.be_after*100).toFixed(1)+'%'):'본절없음(홀드)';
 document.getElementById('subline').innerHTML=
-  '<b>'+DATA.symbol+'</b> · 10분봉 맥점(막돌파) · <b>'+DATA.leverage+'×</b> · 증거금 <b>$'+f2(DATA.margin_per_trade)+'</b> · 본절런너 0.3% · 주말 스킵';
+  '<b>'+DATA.symbol+'</b> · 10분봉 맥점(막돌파) · <b>'+DATA.leverage+'×</b> · 증거금 <b>$'+f2(DATA.margin_per_trade)+'</b> · '+beTxt+' · 주말 스킵';
 
 // 순손익 pill
 const net=DATA.net_pnl;
