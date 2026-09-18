@@ -26,6 +26,7 @@ log = logging.getLogger("forward")
 
 SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")
 POLL = int(os.environ.get("POLL_SEC", "20"))
+ADX1M_MIN = float(os.environ.get("ADX1M_MIN", "25"))   # 1분 ADX 진입게이트(횡보배제). 0=끔
 CFG = {  # ws_watch_10m 지표설정과 동일
     "atr_period": 14, "rci_long": 26, "chikou_shift": 26,
     "pivot_left": 3, "pivot_right": 3, "trend_pivot": 8, "rem_req": 3,
@@ -66,8 +67,29 @@ def _regime_metrics(d10, n=14):
     return {"adx": g(adx), "chop": g(chop), "bbw": g(bbw), "cloud": g(cloud)}
 
 
+def _adx1m(n=14, bars=500):
+    """마지막 '마감된' 1분봉의 ADX(14, Wilder). 진입 게이트용(횡보 배제). 실패시 None."""
+    import numpy as np
+    try:
+        d1 = data.get_history(SYMBOL, "1m", bars=bars)
+    except Exception:
+        return None
+    h, l, c = d1["high"], d1["low"], d1["close"]
+    prev = c.shift(1)
+    tr = np.maximum(h - l, np.maximum((h - prev).abs(), (l - prev).abs()))
+    up, dn = h.diff(), -l.diff()
+    plus = ((up > dn) & (up > 0)) * up.clip(lower=0)
+    minus = ((dn > up) & (dn > 0)) * dn.clip(lower=0)
+    atr = tr.ewm(alpha=1 / n, adjust=False).mean()
+    pdi = 100 * plus.ewm(alpha=1 / n, adjust=False).mean() / atr
+    mdi = 100 * minus.ewm(alpha=1 / n, adjust=False).mean() / atr
+    dx = 100 * (pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan)
+    v = dx.ewm(alpha=1 / n, adjust=False).mean().iloc[-2]   # 마지막 마감봉(룩어헤드X)
+    return None if v != v else float(v)
+
+
 def latest_signal():
-    """최근 마감된 10분봉의 신호. 진입=막돌파(화살표), 청산=반대 맥점(매수/매도맥점, 화면 표시).
+    """최근 마감된 10분봉의 신호. 진입=막돌파(화살표)+1분ADX≥게이트, 청산=반대 막돌파.
     반환: (direction, swing_sl, exit_long_sig, exit_short_sig, bar_time, close, meta)."""
     d10 = data.get_history(SYMBOL, "10m", bars=600)
     d30 = data.get_history(SYMBOL, "30m", bars=300)
@@ -83,6 +105,14 @@ def latest_signal():
     b_long = bool(r["long"]) and r["fresh_long"] >= 3 and (tmL >= 2 if use_htf else True)
     b_short = bool(r["short"]) and r["fresh_short"] >= 3 and (tmS >= 2 if use_htf else True)
     direction = "long" if b_long else ("short" if b_short else None)
+    # ── 1분 ADX 게이트: 막돌파가 떠도 1분ADX<임계(횡보)면 진입 스킵 ──
+    adx1 = None
+    if direction and ADX1M_MIN > 0:
+        adx1 = _adx1m()
+        if adx1 is None or adx1 < ADX1M_MIN:
+            log.info("ADX게이트: 1분ADX %.1f < %.0f → %s 진입 스킵(횡보)",
+                     adx1 if adx1 is not None else -1.0, ADX1M_MIN, direction)
+            direction = None
     # 손절선(전저점/전고점), 무효시 ATR 대체
     if direction:
         is_long = direction == "long"
@@ -96,14 +126,17 @@ def latest_signal():
     exit_long_sig = bool(r["short"]) and r["fresh_short"] >= 3   # 매도막돌파 → 롱 청산
     exit_short_sig = bool(r["long"]) and r["fresh_long"] >= 3    # 매수막돌파 → 숏 청산
     meta = _regime_metrics(d10) if direction else None
+    if meta is not None:
+        meta["adx1m"] = round(adx1, 2) if adx1 is not None else None
     return direction, swing, exit_long_sig, exit_short_sig, bar_time, r["close"], meta
 
 
 def main():
     ex = TrendExecutor()
-    log.info("forward 시작: %s | %s | 증거금 %s×%sx | 본절+%.1f%% | 주말스킵 %s",
+    log.info("forward 시작: %s | %s | 증거금 %s×%sx | 본절+%.1f%% | 1분ADX게이트≥%.0f | 주말스킵 %s",
              SYMBOL, "테스트넷" if ex.ex.testnet else "★실계좌★",
-             ex.cfg["margin_per_trade"], ex.cfg["leverage"], ex.cfg["be_after"] * 100, ex.cfg["weekend_off"])
+             ex.cfg["margin_per_trade"], ex.cfg["leverage"], ex.cfg["be_after"] * 100,
+             ADX1M_MIN, ex.cfg["weekend_off"])
     last_bar = None
     while True:
         try:
