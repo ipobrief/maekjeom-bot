@@ -153,9 +153,13 @@ def main():
                          close, direction or "-", ex.state["dir"] if in_pos else "-")
                 if in_pos:
                     is_long = ex.state["dir"] == "long"
-                    if (oxl if is_long else oxs):   # 반대 막돌파(fresh≥3) → 청산
+                    if (oxl if is_long else oxs):   # 반대 막돌파(fresh≥3) → 청산 + 뒤집기(SAR)
                         log.info("반대 막돌파(%s) 감지 → 청산", "매도막돌파" if is_long else "매수막돌파")
                         ex.exit_now("opposite_signal")
+                        # 반대 막돌파 = 새 진입 신호 → 즉시 반대방향 진입(스탑앤리버스)
+                        if direction and not (ex.cfg["weekend_off"] and is_weekend_kst()):
+                            log.info("스탑앤리버스 → %s 즉시 진입 | 국면 %s", direction, meta)
+                            ex.enter(direction, swing, meta)
                 elif direction and not (ex.cfg["weekend_off"] and is_weekend_kst()):
                     log.info("막돌파 진입 신호(%s) → enter | 국면 %s", direction, meta)
                     ex.enter(direction, swing, meta)
