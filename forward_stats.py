@@ -126,6 +126,40 @@ def main():
     state_file = f"trend_state_{SYMBOL}.json"
     state = json.load(open(state_file, encoding="utf-8")) if os.path.exists(state_file) else None
 
+    # ── A/B: MACD필터 페이퍼봇 vs 무필터 실거래 (AB_START_MS 이후 같은 기간) ──
+    ab_start = int(os.environ.get("AB_START_MS", "0"))
+    mlog = f"trades_MACD_{SYMBOL}.jsonl"
+    m_trades = []
+    if os.path.exists(mlog):
+        for line in open(mlog, encoding="utf-8"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            if int(rec.get("closed_ms", 0)) >= ab_start:
+                m_trades.append(rec)
+
+    def stat(pl):
+        w = [p for p in pl if p > 0]
+        l = [p for p in pl if p < 0]
+        return {"n": len(pl), "net": round(sum(pl), 3), "wins": len(w), "losses": len(l),
+                "pf": round(sum(w) / abs(sum(l)), 2) if l else (99.9 if w else 0.0),
+                "winrate": round(len(w) / len(pl) * 100, 1) if pl else 0.0}
+
+    mstate_f = f"paper_state_MACD_{SYMBOL}.json"
+    mstate = json.load(open(mstate_f, encoding="utf-8")) if os.path.exists(mstate_f) else None
+    ab = {
+        "start_ms": ab_start,
+        "unfilt": stat([t["pnl"] for t in trades if t["close_ms"] >= ab_start]),
+        "macd": stat([float(t["pnl"]) for t in m_trades]),
+        "macd_pos": ({"dir": mstate["dir"], "entry": mstate["entry"]} if mstate else None),
+        "macd_recent": [{"dir": t["dir"], "open_ms": _opened_ms(t), "close_ms": int(t.get("closed_ms", 0)),
+                         "pnl": round(float(t["pnl"]), 3), "reason": t.get("reason")} for t in m_trades[-12:]],
+    }
+
     out = {
         "mode": "testnet" if ex.testnet else "live",
         "symbol": SYMBOL,
@@ -152,6 +186,7 @@ def main():
                    for t in trades[-15:]],
         "curve": curve,
         "tod": tod,
+        "ab": ab,
         "updated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     print(json.dumps(out, ensure_ascii=False))

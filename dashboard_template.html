@@ -91,6 +91,12 @@
   </div>
 
   <div class="card">
+    <h2>🆚 A/B 비교 <span>무필터(실거래) vs MACD필터(페이퍼) · 같은 기간</span></h2>
+    <div class="bench" id="ab"></div>
+    <div id="abtrades" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
     <h2>백테스트 목표치 <span>10분 6개월</span></h2>
     <div class="bench">
       <div>
@@ -257,6 +263,31 @@ if(tr.length){
     document.getElementById('hourly').innerHTML='<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">시간별 손익 (노란 시각=변동성창)</div>'+rows;
   }else{
     document.getElementById('hourly').innerHTML='<div class="empty">거래가 쌓이면 시간대별로 표시됨</div>';
+  }
+})();
+
+// A/B 비교 (무필터 실거래 vs MACD필터 페이퍼)
+(function(){
+  const ab=DATA.ab; if(!ab||!document.getElementById('ab'))return;
+  const box=(title,s,pos,hint)=>`<div>
+    <div class="row"><span class="lab">${title}</span><span style="color:var(--faint);font-size:.78rem">${hint}</span></div>
+    <div class="row"><span class="lab">순손익</span><b class="${cls(s.net)}">${s.n?sgn(s.net):'—'}</b></div>
+    <div class="row"><span class="lab">거래·승률</span><b>${s.n}건 · ${s.n?s.winrate+'%':'—'}</b></div>
+    <div class="row"><span class="lab">PF</span><b>${s.n?s.pf:'—'}</b></div>
+    <div class="row"><span class="lab">현재</span><b>${pos?((pos.dir==='long'?'🟢롱':'🔴숏')+' @'+f2(pos.entry)):'없음'}</b></div>
+  </div>`;
+  const upos=DATA.position.amt!==0?{dir:DATA.position.amt>0?'long':'short',entry:DATA.position.entry}:null;
+  document.getElementById('ab').innerHTML=
+    box('무필터(실거래)',ab.unfilt,upos,'테스트넷 실주문')+
+    box('MACD필터(페이퍼)',ab.macd,ab.macd_pos,'모의체결');
+  const tr=(ab.macd_recent||[]).slice().reverse();
+  if(tr.length){
+    document.getElementById('abtrades').innerHTML=
+    '<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">MACD필터 최근거래</div><div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">실현손익</th></tr></thead><tbody>'+
+    tr.map(x=>`<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`).join('')+
+    '</tbody></table></div>';
+  }else{
+    document.getElementById('abtrades').innerHTML='<div class="empty">MACD필터 봇 거래 대기 중 (방금 시작)</div>';
   }
 })();
 
