@@ -157,7 +157,8 @@ def main():
         "macd": stat([float(t["pnl"]) for t in m_trades]),
         "macd_pos": ({"dir": mstate["dir"], "entry": mstate["entry"]} if mstate else None),
         "macd_recent": [{"dir": t["dir"], "open_ms": _opened_ms(t), "close_ms": int(t.get("closed_ms", 0)),
-                         "pnl": round(float(t["pnl"]), 3), "reason": t.get("reason")} for t in m_trades[-12:]],
+                         "pnl": round(float(t["pnl"]), 3), "reason": t.get("reason"),
+                         "macd": (t.get("meta") or {}).get("macd_in")} for t in m_trades[-12:]],
     }
 
     out = {

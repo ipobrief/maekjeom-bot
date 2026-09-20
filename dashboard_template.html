@@ -281,10 +281,15 @@ if(tr.length){
     box('무필터(실거래)',ab.unfilt,upos,'테스트넷 실주문')+
     box('MACD필터(페이퍼)',ab.macd,ab.macd_pos,'모의체결');
   const tr=(ab.macd_recent||[]).slice().reverse();
+  const notion=DATA.margin_per_trade*DATA.leverage;
   if(tr.length){
     document.getElementById('abtrades').innerHTML=
-    '<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">MACD필터 최근거래</div><div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">실현손익</th></tr></thead><tbody>'+
-    tr.map(x=>`<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td></tr>`).join('')+
+    '<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">MACD필터 최근거래</div><div style="overflow-x:auto"><table><thead><tr><th>방향</th><th>진입 (KST)</th><th>청산 (KST)</th><th>사유</th><th class="r">MACD</th><th class="r">실현손익</th><th class="r">가격변동%</th><th class="r">ROE%</th></tr></thead><tbody>'+
+    tr.map(x=>{
+      const mv=(x.macd!=null)?(x.macd>0?'+':'')+f2(x.macd):'—';
+      const pxpct=notion?(x.pnl/notion*100):0, roe=DATA.margin_per_trade?(x.pnl/DATA.margin_per_trade*100):0;
+      return `<tr><td>${dirTag(x.dir)}</td><td>${x.open_ms?kst(x.open_ms):'—'}</td><td>${x.close_ms?kst(x.close_ms):'—'}</td><td>${reasonTag(x.reason)}</td><td class="r" style="color:var(--muted)">${mv}</td><td class="r ${cls(x.pnl)}">${sgn(x.pnl)}</td><td class="r ${cls(x.pnl)}" style="opacity:.85">${sgn(pxpct)}%</td><td class="r ${cls(x.pnl)}">${sgn(roe)}%</td></tr>`;
+    }).join('')+
     '</tbody></table></div>';
   }else{
     document.getElementById('abtrades').innerHTML='<div class="empty">MACD필터 봇 거래 대기 중 (방금 시작)</div>';
