@@ -24,6 +24,11 @@ SYMBOL = os.environ.get("SYMBOL", "BTCUSDT")
 POLL = int(os.environ.get("POLL_SEC", "20"))
 LEV = int(os.environ.get("LEVERAGE", "20"))
 MARGIN = float(os.environ.get("MARGIN_PER_TRADE", "100"))
+WEEKEND_OFF = os.environ.get("WEEKEND_OFF", "1").lower() not in ("0", "false", "no")
+
+
+def is_weekend():
+    return datetime.now(KST).weekday() >= 5
 TAKER = 0.0005
 STATE = f"paper_state_MACD_{SYMBOL}.json"
 TLOG = f"trades_MACD_{SYMBOL}.jsonl"
@@ -108,7 +113,8 @@ def close(st, price, reason):
 
 
 def main():
-    log.info("페이퍼 MACD필터 봇 시작: %s | 증거금 %s×%sx | 홀드+SAR | MACD0선필터(진입·청산)", SYMBOL, MARGIN, LEV)
+    log.info("페이퍼 MACD필터 봇 시작: %s | 증거금 %s×%sx | 홀드+SAR | MACD0선필터 | 주말스킵 %s",
+             SYMBOL, MARGIN, LEV, WEEKEND_OFF)
     st = load()
     last_bar = None
     while True:
@@ -128,10 +134,11 @@ def main():
                     opp_valid = sell_valid if is_long else buy_valid   # 유효 반대막돌파만 청산
                     if opp_valid:
                         close(st, px, "반대막돌파"); st = None
-                        # SAR: 유효 반대막돌파 방향으로 즉시 진입
-                        ndir = "short" if is_long else "long"
-                        st = enter(ndir, px, swl, swh, atr, macd)
-                elif buy_valid or sell_valid:
+                        # SAR: 유효 반대막돌파 방향으로 즉시 진입 (주말 스킵)
+                        if not (WEEKEND_OFF and is_weekend()):
+                            ndir = "short" if is_long else "long"
+                            st = enter(ndir, px, swl, swh, atr, macd)
+                elif (buy_valid or sell_valid) and not (WEEKEND_OFF and is_weekend()):
                     st = enter("long" if buy_valid else "short", px, swl, swh, atr, macd)
             save(st)
         except Exception as e:
