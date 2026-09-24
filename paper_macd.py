@@ -25,6 +25,7 @@ POLL = int(os.environ.get("POLL_SEC", "20"))
 LEV = int(os.environ.get("LEVERAGE", "20"))
 MARGIN = float(os.environ.get("MARGIN_PER_TRADE", "100"))
 WEEKEND_OFF = os.environ.get("WEEKEND_OFF", "1").lower() not in ("0", "false", "no")
+USE_STOP = os.environ.get("USE_STOP", "1").lower() not in ("0", "false", "no")  # 0=손절없음(반대막돌파만)
 
 
 def is_weekend():
@@ -120,8 +121,8 @@ def main():
     while True:
         try:
             px = mark_price()
-            # 1) 손절 감시(홀드: 초기손절만)
-            if st is not None:
+            # 1) 손절 감시 — USE_STOP=False면 스킵(반대막돌파로만 청산)
+            if st is not None and USE_STOP:
                 is_long = st["dir"] == "long"
                 if (px <= st["swing"]) if is_long else (px >= st["swing"]):
                     close(st, px, "손절"); st = None; save(st)

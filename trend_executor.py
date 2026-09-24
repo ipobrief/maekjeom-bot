@@ -38,6 +38,7 @@ CFG = {
     "be_after": _f("BE_AFTER", 0.003),   # +0.3% 유리 시 본절 이동
     "be_buffer": _f("BE_BUFFER", 0.0012),  # 본절 수수료버퍼
     "weekend_off": os.environ.get("WEEKEND_OFF", "1").lower() not in ("0", "false", "no"),
+    "use_stop": os.environ.get("USE_STOP", "1").lower() not in ("0", "false", "no"),  # 0=손절없음(반대막돌파만 청산)
 }
 
 
@@ -149,17 +150,18 @@ class TrendExecutor:
                 self.state["be_active"] = True
                 self._save()
                 log.info("+%.1f%% 유리 도달 → 손절을 본절로 이동", self.cfg["be_after"] * 100)
-        # 현재 손절선
-        if self.state["be_active"]:
-            stop = entry * (1 + self.cfg["be_buffer"]) if is_long else entry * (1 - self.cfg["be_buffer"])
-        else:
-            stop = self.state["swing_sl"]
-        if (price <= stop) if is_long else (price >= stop):
-            self.ex.market_order(self.symbol, "SELL" if is_long else "BUY", abs(amt), reduce_only=True)
-            reason = "본절" if self.state["be_active"] else "손절"
-            log.info("%s 히트 @%.2f (stop=%.2f) → 청산", reason, price, stop)
-            self._record_close(price, reason, abs(amt))
-            self._reset()
+        # 손절/본절 청산 — use_stop=False면 스킵(반대막돌파로만 청산)
+        if self.cfg.get("use_stop", True) or self.state["be_active"]:
+            if self.state["be_active"]:
+                stop = entry * (1 + self.cfg["be_buffer"]) if is_long else entry * (1 - self.cfg["be_buffer"])
+            else:
+                stop = self.state["swing_sl"]
+            if (price <= stop) if is_long else (price >= stop):
+                self.ex.market_order(self.symbol, "SELL" if is_long else "BUY", abs(amt), reduce_only=True)
+                reason = "본절" if self.state["be_active"] else "손절"
+                log.info("%s 히트 @%.2f (stop=%.2f) → 청산", reason, price, stop)
+                self._record_close(price, reason, abs(amt))
+                self._reset()
 
     def exit_now(self, reason="opposite_signal"):
         amt = self.position_amt()
