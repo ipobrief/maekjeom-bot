@@ -71,13 +71,9 @@ def signals():
     macd = float((ema12 - ema26).iloc[-2])           # 마지막 마감봉 MACD라인
     r = sig.iloc[-2]
     bar = sig.index[-2]
-    mak_long = bool(r["long"]) and r["fresh_long"] >= 3
-    mak_short = bool(r["short"]) and r["fresh_short"] >= 3
-    # MACD 정렬 검증 — 유효 막돌파만
-    buy_valid = mak_long and macd > 0
-    sell_valid = mak_short and macd < 0
-    swing_low = r["swing_low"]; swing_high = r["swing_high"]; atr = r["atr"]; close = r["close"]
-    return bar, buy_valid, sell_valid, swing_low, swing_high, atr, close, macd
+    mak_long = bool(r["long"]) and r["fresh_long"] >= 3      # 매수막돌파
+    mak_short = bool(r["short"]) and r["fresh_short"] >= 3   # 매도막돌파
+    return bar, mak_long, mak_short, r["swing_low"], r["swing_high"], r["atr"], macd
 
 
 def _swing(direction, entry, swl, swh, atr):
@@ -114,33 +110,51 @@ def close(st, price, reason):
 
 
 def main():
-    log.info("페이퍼 MACD필터 봇 시작: %s | 증거금 %s×%sx | 홀드+SAR | MACD0선필터 | 주말스킵 %s",
+    log.info("페이퍼 MACD필터 봇 시작: %s | 증거금 %s×%sx | 홀드+SAR | MACD0선 '대기(deferred)' | 주말스킵 %s",
              SYMBOL, MARGIN, LEV, WEEKEND_OFF)
     st = load()
+    pend = None          # {"dir": 1/-1}: 막돌파 떴으나 MACD 반대편 → 0선돌파 대기중
     last_bar = None
     while True:
         try:
             px = mark_price()
-            # 1) 손절 감시 — USE_STOP=False면 스킵(반대막돌파로만 청산)
+            # 손절 감시 — USE_STOP=False면 스킵(반대막돌파로만 청산)
             if st is not None and USE_STOP:
                 is_long = st["dir"] == "long"
                 if (px <= st["swing"]) if is_long else (px >= st["swing"]):
                     close(st, px, "손절"); st = None; save(st)
-            # 2) 새 봉 마감 시 신호 처리
-            bar, buy_valid, sell_valid, swl, swh, atr, cprice, macd = signals()
+            # 새 봉 마감 시 신호 처리
+            bar, mak_long, mak_short, swl, swh, atr, macd = signals()
             if bar != last_bar:
                 last_bar = bar
-                if st is not None:
-                    is_long = st["dir"] == "long"
-                    opp_valid = sell_valid if is_long else buy_valid   # 유효 반대막돌파만 청산
-                    if opp_valid:
+                # ── 신호 판정: 막돌파+MACD정렬 즉시 / 또는 막돌파 후 MACD 0선돌파 '대기' ──
+                sig_dir = None   # +1 롱, -1 숏
+                if mak_long:
+                    if macd > 0:
+                        sig_dir = 1; pend = None
+                    else:
+                        pend = {"dir": 1}                 # 매수막돌파 예약(MACD 0선위 대기)
+                elif mak_short:
+                    if macd < 0:
+                        sig_dir = -1; pend = None
+                    else:
+                        pend = {"dir": -1}                # 매도막돌파 예약(MACD 0선아래 대기)
+                elif pend is not None:                    # 대기중 → MACD 0선 정렬되면 발동
+                    if pend["dir"] == 1 and macd > 0:
+                        sig_dir = 1; pend = None
+                    elif pend["dir"] == -1 and macd < 0:
+                        sig_dir = -1; pend = None
+                # ── 신호 실행 (홀드+SAR, 주말 신규진입 스킵) ──
+                if sig_dir is not None:
+                    want = "long" if sig_dir == 1 else "short"
+                    weekend = WEEKEND_OFF and is_weekend()
+                    if st is None:
+                        if not weekend:
+                            st = enter(want, px, swl, swh, atr, macd)
+                    elif st["dir"] != want:               # 반대 → 청산+SAR
                         close(st, px, "반대막돌파"); st = None
-                        # SAR: 유효 반대막돌파 방향으로 즉시 진입 (주말 스킵)
-                        if not (WEEKEND_OFF and is_weekend()):
-                            ndir = "short" if is_long else "long"
-                            st = enter(ndir, px, swl, swh, atr, macd)
-                elif (buy_valid or sell_valid) and not (WEEKEND_OFF and is_weekend()):
-                    st = enter("long" if buy_valid else "short", px, swl, swh, atr, macd)
+                        if not weekend:
+                            st = enter(want, px, swl, swh, atr, macd)
             save(st)
         except Exception as e:
             log.warning("[페이퍼] 루프 오류: %s", e)
