@@ -69,10 +69,13 @@ def signals():
     ema12 = d10["close"].ewm(span=12, adjust=False).mean()
     ema26 = d10["close"].ewm(span=26, adjust=False).mean()
     macd = float((ema12 - ema26).iloc[-2])           # 마지막 마감봉 MACD라인
+    # 막돌파 = (long_all & fresh≥3)의 '새로 참됨' 에지 — Pine·무필터봇과 동일
+    makL_s = sig["long_all"].astype(bool) & (sig["fresh_long"] >= 3)
+    makS_s = sig["short_all"].astype(bool) & (sig["fresh_short"] >= 3)
+    mak_long = bool((makL_s & ~makL_s.shift(1, fill_value=False)).iloc[-2])
+    mak_short = bool((makS_s & ~makS_s.shift(1, fill_value=False)).iloc[-2])
     r = sig.iloc[-2]
     bar = sig.index[-2]
-    mak_long = bool(r["long"]) and r["fresh_long"] >= 3      # 매수막돌파
-    mak_short = bool(r["short"]) and r["fresh_short"] >= 3   # 매도막돌파
     return bar, mak_long, mak_short, r["swing_low"], r["swing_high"], r["atr"], macd
 
 

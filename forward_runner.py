@@ -98,12 +98,18 @@ def latest_signal():
     sig = strategy.build_signals(d10, d30, d1h, d2h, CFG)
     r = sig.iloc[-2]          # 마지막 '마감된' 봉 (마지막 행은 형성중)
     bar_time = sig.index[-2]
-    # 진입 = 맥점(막돌파) — TV 화살표와 동일(막돌파 fresh≥3). HTF필터는 옵션(기본 끔).
+    # ── 막돌파 = (long_all & fresh≥3)의 '새로 참됨' 에지 — Pine과 100% 동일 ──
+    #   (셋업이 먼저 서고 fresh가 나중에 3 도달하는 순간도 포착. 옛 long_entry&fresh는 놓쳤음)
+    makL_s = sig["long_all"].astype(bool) & (sig["fresh_long"] >= 3)
+    makS_s = sig["short_all"].astype(bool) & (sig["fresh_short"] >= 3)
+    makL = bool((makL_s & ~makL_s.shift(1, fill_value=False)).iloc[-2])
+    makS = bool((makS_s & ~makS_s.shift(1, fill_value=False)).iloc[-2])
+    # HTF필터는 옵션(기본 끔).
     use_htf = os.environ.get("USE_HTF_FILTER", "0").lower() not in ("0", "false", "no")
     tmL = sum(int(r[f"boss_m0_{i}"] and r[f"boss_mu_{i}"]) for i in (1, 2, 3))
     tmS = sum(int((not r[f"boss_m0_{i}"]) and (not r[f"boss_mu_{i}"])) for i in (1, 2, 3))
-    b_long = bool(r["long"]) and r["fresh_long"] >= 3 and (tmL >= 2 if use_htf else True)
-    b_short = bool(r["short"]) and r["fresh_short"] >= 3 and (tmS >= 2 if use_htf else True)
+    b_long = makL and (tmL >= 2 if use_htf else True)
+    b_short = makS and (tmS >= 2 if use_htf else True)
     direction = "long" if b_long else ("short" if b_short else None)
     # ── 1분 ADX 게이트: 막돌파가 떠도 1분ADX<임계(횡보)면 진입 스킵 ──
     adx1 = None
@@ -122,9 +128,9 @@ def latest_signal():
             swing = px - r["atr"] * CFG["atr_stop_mult"] * (1 if is_long else -1)
     else:
         swing = None
-    # 청산 = 반대 '막돌파'(fresh≥3)에서만 — 진입과 동일 기준(느슨맥점으론 청산 안 함)
-    exit_long_sig = bool(r["short"]) and r["fresh_short"] >= 3   # 매도막돌파 → 롱 청산
-    exit_short_sig = bool(r["long"]) and r["fresh_long"] >= 3    # 매수막돌파 → 숏 청산
+    # 청산 = 반대 '막돌파' 에지에서만 (진입과 동일 정의)
+    exit_long_sig = makS    # 매도막돌파 → 롱 청산
+    exit_short_sig = makL   # 매수막돌파 → 숏 청산
     meta = _regime_metrics(d10) if direction else None
     if meta is not None:
         meta["adx1m"] = round(adx1, 2) if adx1 is not None else None
