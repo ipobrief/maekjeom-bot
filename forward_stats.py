@@ -151,9 +151,17 @@ def main():
 
     mstate_f = f"paper_state_MACD_{SYMBOL}.json"
     mstate = json.load(open(mstate_f, encoding="utf-8")) if os.path.exists(mstate_f) else None
+    # 공정 비교: 무필터도 net(수수료+펀딩 반영). income 매칭은 SAR로 겹쳐 복잡 → 거래당 균등배분
+    # (모든 거래 명목 동일=거의 상수). MACD 페이퍼는 이미 net.
+    ug = [t["pnl"] for t in trades if t["close_ms"] >= ab_start]     # 무필터 gross
+    comm_ab = sum(float(x["income"]) for x in inc if x["incomeType"] == "COMMISSION" and int(x["time"]) >= ab_start)
+    fund_ab = sum(float(x["income"]) for x in inc if x["incomeType"] == "FUNDING_FEE" and int(x["time"]) >= ab_start)
+    adj = (comm_ab + fund_ab) / len(ug) if ug else 0.0              # 거래당 수수료+펀딩
+    unfilt_net = [g + adj for g in ug]
     ab = {
         "start_ms": ab_start,
-        "unfilt": stat([t["pnl"] for t in trades if t["close_ms"] >= ab_start]),
+        "unfilt": stat(unfilt_net),
+        "unfilt_fee": round(comm_ab + fund_ab, 2),
         "macd": stat([float(t["pnl"]) for t in m_trades]),
         "macd_pos": ({"dir": mstate["dir"], "entry": mstate["entry"]} if mstate else None),
         "macd_recent": [{"dir": t["dir"], "open_ms": _opened_ms(t), "close_ms": int(t.get("closed_ms", 0)),
