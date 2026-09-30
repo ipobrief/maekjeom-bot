@@ -231,36 +231,36 @@ if(tr.length){
   document.getElementById('trades').innerHTML='<div class="empty">아직 거래 없음 — 신호 대기 중</div>';
 }
 
-// 시간대별 성과 (변동성창 KST22~10 vs 횡보창 KST10~22)
+// 시간대별 성과 (net·수수료반영). 이원화 + 시간별 정밀표
 (function(){
   const t=DATA.tod||{volatile:{n:0,pnl:0,winrate:0,pf:0},range:{n:0,pnl:0,winrate:0,pf:0},hourly:[]};
-  const box=(title,hint,b)=>`<div>
+  const feePer=(DATA.n_trades)?(DATA.fees/DATA.n_trades):0;   // 거래당 수수료(음수)
+  const box=(title,hint,b)=>{const net=b.pnl+b.n*feePer;return `<div>
     <div class="row"><span class="lab">${title}</span><span style="color:var(--faint);font-size:.78rem">${hint}</span></div>
-    <div class="row"><span class="lab">순손익</span><b class="${cls(b.pnl)}">${b.n?sgn(b.pnl):'—'}</b></div>
+    <div class="row"><span class="lab">순손익(net)</span><b class="${cls(net)}">${b.n?sgn(net):'—'}</b></div>
     <div class="row"><span class="lab">거래·승률</span><b>${b.n}건 · ${b.n?b.winrate+'%':'—'}</b></div>
-    <div class="row"><span class="lab">PF</span><b>${b.n?b.pf:'—'}</b></div>
-  </div>`;
+    <div class="row"><span class="lab">PF(gross)</span><b>${b.n?b.pf:'—'}</b></div>
+  </div>`;};
   document.getElementById('tod').innerHTML=
-    box('🌙 변동성창','밤10~오전10시',t.volatile)+
-    box('☀️ 횡보창','오전10~밤10시',t.range);
+    box('🌙 밤10~오전10','변동성창',t.volatile)+
+    box('☀️ 오전10~밤10','횡보창',t.range);
   const hh=t.hourly||[];
   if(hh.length){
-    const mx=Math.max(1,...hh.map(x=>Math.abs(x.pnl)));
-    const map={}; hh.forEach(x=>map[x.h]=x);
+    const map={}; hh.forEach(x=>map[x.h]={n:x.n,net:x.pnl+x.n*feePer});
+    const mx=Math.max(1,...Object.values(map).map(v=>Math.abs(v.net)));
     let rows='';
     for(let h=0;h<24;h++){
-      const x=map[h];
-      const inVol=(h>=22||h<10);
-      const lab=String(h).padStart(2,'0')+'시';
-      if(!x){rows+=`<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-family:var(--mono);font-size:.72rem"><span style="width:34px;color:var(--faint)">${lab}</span><span style="flex:1"></span><span style="width:56px;text-align:right;color:var(--faint)">·</span></div>`;continue;}
-      const w=Math.round(Math.abs(x.pnl)/mx*100);
-      const col=x.pnl>=0?'var(--gain)':'var(--loss)';
-      rows+=`<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-family:var(--mono);font-size:.72rem" title="${x.n}건">
-        <span style="width:34px;color:${inVol?'#e8c877':'var(--muted)'}">${lab}</span>
-        <span style="flex:1;height:9px;background:#1a2333;border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:${w}%;background:${col}"></span></span>
-        <span style="width:56px;text-align:right;color:${col}">${sgn(x.pnl)}</span></div>`;
+      const inVol=(h>=22||h<10), lab=String(h).padStart(2,'0')+'시', x=map[h];
+      if(!x){rows+=`<tr><td style="color:var(--faint)">${lab}</td><td class="r" style="color:var(--faint)">·</td><td></td><td class="r" style="color:var(--faint)">·</td></tr>`;continue;}
+      const w=Math.round(Math.abs(x.net)/mx*100), col=x.net>=0?'var(--gain)':'var(--loss)';
+      rows+=`<tr><td style="color:${inVol?'#e8c877':'var(--text)'}">${lab}</td>`+
+        `<td class="r" style="color:var(--muted)">${x.n}</td>`+
+        `<td style="width:48%"><span style="display:inline-block;height:8px;width:${w}%;background:${col};border-radius:3px;vertical-align:middle"></span></td>`+
+        `<td class="r" style="color:${col}">${sgn(x.net)}</td></tr>`;
     }
-    document.getElementById('hourly').innerHTML='<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">시간별 손익 (노란 시각=변동성창)</div>'+rows;
+    document.getElementById('hourly').innerHTML=
+      '<div style="color:var(--muted);font-size:.72rem;margin-bottom:6px">시간별 순손익(net) · 노란시각=밤10~오전10 · ⚠️시간당 표본 적어 노이즈 큼(200거래+ 필요)</div>'+
+      '<div style="overflow-x:auto"><table style="font-size:.75rem"><thead><tr><th>시각(KST)</th><th class="r">거래</th><th>손익</th><th class="r">순손익</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }else{
     document.getElementById('hourly').innerHTML='<div class="empty">거래가 쌓이면 시간대별로 표시됨</div>';
   }
