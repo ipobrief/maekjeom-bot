@@ -27,10 +27,10 @@ def main():
     ex = BinanceFutures()
     bal, avail = ex.balance_usdt()
     pos = ex.position(SYMBOL)
-    inc = ex.income_history(symbol=SYMBOL, limit=1000)
-
     # FORWARD_START(ms) 이후 거래만 집계 (예전 수동테스트 제외)
     start_ms = int(os.environ.get("FORWARD_START_MS", "0"))
+    # start_time 페이지네이션으로 '전체' 수집 (1000건 한도에 옛 수익 잘리는 버그 방지)
+    inc = ex.income_history(symbol=SYMBOL, start_time=start_ms) if start_ms else ex.income_history(symbol=SYMBOL, limit=1000)
     rp = [[int(x["time"]), float(x["income"]), False]   # [청산ms, pnl, 소비여부]
           for x in inc if x["incomeType"] == "REALIZED_PNL" and int(x["time"]) >= start_ms]
     rp.sort()

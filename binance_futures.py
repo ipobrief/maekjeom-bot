@@ -185,14 +185,34 @@ class BinanceFutures:
     def cancel_all(self, symbol):
         return self._delete("/fapi/v1/allOpenOrders", {"symbol": symbol})
 
-    def income_history(self, symbol=None, income_type=None, limit=1000):
-        """실현손익/수수료/펀딩 내역 (/fapi/v1/income). 성과 집계용."""
-        params = {"limit": limit}
-        if symbol:
-            params["symbol"] = symbol
-        if income_type:
-            params["incomeType"] = income_type
-        return self._get("/fapi/v1/income", params, signed=True)
+    def income_history(self, symbol=None, income_type=None, limit=1000, start_time=None):
+        """실현손익/수수료/펀딩 내역 (/fapi/v1/income). 성과 집계용.
+        start_time(ms) 주면 그 이후 '전체'를 페이지네이션으로 수집(1000건 한도 초과 대응)."""
+        if start_time is None:
+            params = {"limit": limit}
+            if symbol:
+                params["symbol"] = symbol
+            if income_type:
+                params["incomeType"] = income_type
+            return self._get("/fapi/v1/income", params, signed=True)
+        out, st = [], int(start_time)
+        for _ in range(50):   # 안전상한(최대 5만건)
+            params = {"limit": 1000, "startTime": st}
+            if symbol:
+                params["symbol"] = symbol
+            if income_type:
+                params["incomeType"] = income_type
+            batch = self._get("/fapi/v1/income", params, signed=True)
+            if not batch:
+                break
+            out.extend(batch)
+            if len(batch) < 1000:
+                break
+            last_t = max(int(x["time"]) for x in batch)
+            if last_t < st:
+                break
+            st = last_t + 1
+        return out
 
 
 # ── 연결 자가진단 (읽기전용: 주문 안 넣음) ────────────────────────────────────
